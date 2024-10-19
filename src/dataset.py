@@ -1,10 +1,13 @@
 import json
 import os
+import glob
 from datetime import datetime
+from sklearn.model_selection import KFold
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import tifffile as tiff
 import torch
 import torch.utils.data as tdata
 
@@ -295,6 +298,155 @@ class PASTIS_Dataset(tdata.Dataset):
         if len(self.sats) == 1:
             data = data[self.sats[0]]
             dates = dates[self.sats[0]]
+
+        return (data, dates), target
+
+
+class NorthernRoadsDataset(tdata.Dataset):
+    def __init__(
+        self,
+        folder,
+        norm=True,
+        folds=None,
+        reference_date="2020-01-01",
+        satellites=None,
+    ):
+        """
+        Pytorch Dataset class to load samples from the Northern Roads dataset for semantic segmentation.
+        The Dataset yields ((data, dates), target) tuples, where:
+            - data contains the image time series
+            - dates contains the date sequence of the observations expressed in number
+              of days since a reference date
+            - target is the semantic or instance target
+        Args:
+            folder (str): Path to the dataset
+            norm (bool): If true, images are standardised using pre-computed
+                channel-wise means and standard deviations.
+            reference_date (str, Format : 'YYYY-MM-DD'): Defines the reference date
+                based on which all observation dates are expressed. Along with the image
+                time series and the target tensor, this dataloader yields the sequence
+                of observation dates (in terms of number of days since the reference
+                date). This sequence of dates is used for instance for the positional
+                encoding in attention based approaches.
+            folds (list, optional): List of ints specifying which of the 5 official
+                folds to load. By default (when None is specified) all folds are loaded.
+            satellites (list): defines the satellites to use (only Sentinel-2 is available
+                in v1.0)
+        """
+        super(NorthernRoadsDataset, self).__init__()
+
+        if satellites is None:
+            satellites = ["S2_10m"]
+
+        self.folder = folder
+        self.norm = norm
+        self.reference_date = datetime(*map(int, reference_date.split("-")))
+        self.satellites = satellites
+
+        # Get metadata
+        print("Reading patch metadata . . .")
+
+        self.meta_patch = pd.read_json(os.path.join(folder, "metadata.json"))
+        self.meta_patch.index = self.meta_patch["Patch"].astype(int)
+        self.meta_patch.sort_index(inplace=True)
+
+        self.date_tables = {s: None for s in satellites}
+        self.date_range = np.array(range(-200, 600))
+        for s in satellites:
+            dates = self.meta_patch[f'Dates-{s}']
+            date_table = pd.DataFrame(
+                index=self.meta_patch.index, columns=self.date_range, dtype=int
+            )
+            for pid, date_seq in dates.items():
+                if type(date_seq) == str:
+                    date_seq = json.loads(date_seq)
+                d = pd.DataFrame(date_seq)
+                d = d[0].apply(
+                    lambda x: (
+                        datetime(int(str(x)[:4]), int(str(x)[5:7]), int(str(x)[8:10]), int(str(x)[11:13]), int(str(x)[14:16]), int(str(x)[17:19]))
+                        - self.reference_date
+                    ).days
+                )
+                date_table.loc[pid, d.values] = 1
+            date_table = date_table.fillna(0)
+            self.date_tables[s] = {
+                index: np.array(list(d.values()))
+                for index, d in date_table.to_dict(orient="index").items()
+            }
+
+        print("Done.")
+
+        # Select Fold samples
+        if folds is not None:
+            self.meta_patch = pd.concat(
+                [self.meta_patch[self.meta_patch["Fold"] == f] for f in folds]
+            )
+
+        self.len = self.meta_patch.shape[0]
+        self.id_patches = self.meta_patch.index
+
+        # Get normalisation values
+        if norm:
+            self.norm = {}
+            for s in self.satellites:
+                with open(
+                    os.path.join(folder, "NORM_{}_patch.json".format(s)), "r"
+                ) as file:
+                    norm_values = json.loads(file.read())
+                selected_folds = folds if folds is not None else range(1, 6)
+                means = [norm_values["Fold_{}".format(f)]["mean"] for f in selected_folds]
+                stds = [norm_values["Fold_{}".format(f)]["std"] for f in selected_folds]
+                self.norm[s] = np.stack(means).mean(axis=0), np.stack(stds).mean(axis=0)
+                self.norm[s] = (
+                    torch.from_numpy(self.norm[s][0]).float(),
+                    torch.from_numpy(self.norm[s][1]).float(),
+                )
+        else:
+            self.norm = None
+
+        print("Dataset ready.")
+
+    def __len__(self):
+        return self.len
+
+    def get_dates(self, id_patch, sat):
+        return self.date_range[np.where(self.date_tables[sat][id_patch] == 1)[0]]
+
+    def load_patch(self, satellite, id_patch):
+        image_names = sorted(self.meta_patch.loc[id_patch, f'Images-{satellite}'])
+        return np.stack([tiff.imread(os.path.join(self.folder, satellite, f'{name}.tif')) for name in image_names])
+
+    def load_target(self, id_patch):
+        column_name = [col for col in self.meta_patch.columns if col.startswith('Images-')][0]
+        image_name = self.meta_patch.loc[id_patch, column_name][0]
+        return tiff.imread(os.path.join(self.folder, 'S2_road_masks', f'{image_name}.tif'))
+
+    def __getitem__(self, item):
+        id_patch = self.id_patches[item]
+
+        # Retrieve and prepare satellite data in TxCxHxW format
+        data = {s: torch.from_numpy(self.load_patch(s, id_patch).transpose((0, 3, 1, 2)).astype(np.float32))
+                for s in self.satellites}
+
+        if self.norm is not None:
+            data = {
+                s: (d - self.norm[s][0][None, :, None, None])
+                / self.norm[s][1][None, :, None, None]
+                for s, d in data.items()
+            }
+
+        # Retrieve segmentation masks
+        target = self.load_target(id_patch).astype(int)
+        target = torch.from_numpy(target)
+
+        # Retrieve date sequences
+        dates = {
+            s: torch.from_numpy(self.get_dates(id_patch, s)) for s in self.satellites
+        }
+
+        if len(self.satellites) == 1:
+            data = data[self.satellites[0]]
+            dates = dates[self.satellites[0]]
 
         return (data, dates), target
 
