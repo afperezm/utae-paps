@@ -1,8 +1,6 @@
 import json
 import os
-import glob
 from datetime import datetime
-from sklearn.model_selection import KFold
 
 import geopandas as gpd
 import numpy as np
