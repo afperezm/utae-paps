@@ -17,7 +17,7 @@ import torch.utils.data as data
 import torchnet as tnt
 
 from src import utils, model_utils
-from src.dataset import PASTIS_Dataset
+from src.dataset import PASTIS_Dataset, NorthernRoadsDataset
 from src.learning.metrics import confusion_matrix_analysis
 from src.learning.miou import IoU
 from src.learning.weight_init import weight_init
@@ -253,14 +253,18 @@ def main(config):
             folder=config.dataset_folder,
             norm=True,
             reference_date=config.ref_date,
-            mono_date=config.mono_date,
-            target="semantic",
-            sats=["S2"],
+            # mono_date=config.mono_date,
+            # target="semantic",
+            # sats=["S2"],
+            satellites=["S2_10m"]
         )
 
-        dt_train = PASTIS_Dataset(**dt_args, folds=train_folds, cache=config.cache)
-        dt_val = PASTIS_Dataset(**dt_args, folds=val_fold, cache=config.cache)
-        dt_test = PASTIS_Dataset(**dt_args, folds=test_fold)
+        # dt_train = PASTIS_Dataset(**dt_args, folds=train_folds, cache=config.cache)
+        # dt_val = PASTIS_Dataset(**dt_args, folds=val_fold, cache=config.cache)
+        # dt_test = PASTIS_Dataset(**dt_args, folds=test_fold)
+        dt_train = NorthernRoadsDataset(**dt_args, folds=train_folds, class_mapping={0: 0, 255: 1})
+        dt_val = NorthernRoadsDataset(**dt_args, folds=val_fold, class_mapping={0: 0, 255: 1})
+        dt_test = NorthernRoadsDataset(**dt_args, folds=test_fold, class_mapping={0: 0, 255: 1})
 
         collate_fn = lambda x: utils.pad_collate(x, pad_value=config.pad_value)
         train_loader = data.DataLoader(
