@@ -308,6 +308,7 @@ class NorthernRoadsDataset(tdata.Dataset):
         folder,
         norm=True,
         folds=None,
+        class_mapping=None,
         reference_date="2020-01-01",
         satellites=None,
     ):
@@ -330,6 +331,8 @@ class NorthernRoadsDataset(tdata.Dataset):
                 encoding in attention based approaches.
             folds (list, optional): List of ints specifying which of the 5 official
                 folds to load. By default (when None is specified) all folds are loaded.
+            class_mapping (dict, optional): Dictionary to define a mapping between the
+                default class nomenclature and another class grouping, optional.
             satellites (list): defines the satellites to use (only Sentinel-2 is available
                 in v1.0)
         """
@@ -341,6 +344,11 @@ class NorthernRoadsDataset(tdata.Dataset):
         self.folder = folder
         self.norm = norm
         self.reference_date = datetime(*map(int, reference_date.split("-")))
+        self.class_mapping = (
+            np.vectorize(lambda x: class_mapping[x])
+            if class_mapping is not None
+            else class_mapping
+        )
         self.satellites = satellites
 
         # Get metadata
@@ -437,6 +445,10 @@ class NorthernRoadsDataset(tdata.Dataset):
 
         # Retrieve segmentation masks
         target = self.load_target(id_patch).astype(int)
+
+        if self.class_mapping is not None:
+            target = self.class_mapping(target)
+
         target = torch.from_numpy(target)
 
         # Retrieve date sequences
