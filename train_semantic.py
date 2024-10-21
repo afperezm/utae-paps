@@ -262,9 +262,9 @@ def main(config):
         # dt_train = PASTIS_Dataset(**dt_args, folds=train_folds, cache=config.cache)
         # dt_val = PASTIS_Dataset(**dt_args, folds=val_fold, cache=config.cache)
         # dt_test = PASTIS_Dataset(**dt_args, folds=test_fold)
-        dt_train = NorthernRoadsDataset(**dt_args, folds=train_folds, class_mapping={0: 0, 255: 1})
-        dt_val = NorthernRoadsDataset(**dt_args, folds=val_fold, class_mapping={0: 0, 255: 1})
-        dt_test = NorthernRoadsDataset(**dt_args, folds=test_fold, class_mapping={0: 0, 255: 1})
+        dt_train = NorthernRoadsDataset(**dt_args, folds=train_folds)
+        dt_val = NorthernRoadsDataset(**dt_args, folds=val_fold)
+        dt_test = NorthernRoadsDataset(**dt_args, folds=test_fold)
 
         collate_fn = lambda x: utils.pad_collate(x, pad_value=config.pad_value)
         train_loader = data.DataLoader(

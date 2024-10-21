@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 
+import cv2
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -420,12 +421,18 @@ class NorthernRoadsDataset(tdata.Dataset):
 
     def load_patch(self, satellite, id_patch):
         image_names = sorted(self.meta_patch.loc[id_patch, f'Images-{satellite}'])
-        return np.stack([tiff.imread(os.path.join(self.folder, satellite, f'{name}.tif')) for name in image_names])
+        images = [tiff.imread(os.path.join(self.folder, satellite, f'{name}.tif')) for name in image_names]
+        return np.stack([cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC) for image in images])
 
     def load_target(self, id_patch):
         column_name = [col for col in self.meta_patch.columns if col.startswith('Images-')][0]
         image_name = self.meta_patch.loc[id_patch, column_name][0]
-        return tiff.imread(os.path.join(self.folder, 'S2_road_masks', f'{image_name}.tif'))
+        target = tiff.imread(os.path.join(self.folder, 'S2_road_masks', f'{image_name}.tif'))
+        target = cv2.resize(target, (256, 256), interpolation=cv2.INTER_CUBIC)
+        target = np.array(target, np.float32) / 255.0
+        target[target >= 0.5] = 1.0
+        target[target < 0.5] = 0.0
+        return target
 
     def __getitem__(self, item):
         id_patch = self.id_patches[item]
