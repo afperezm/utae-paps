@@ -5,6 +5,7 @@ License: MIT
 """
 import torch
 import torch.nn as nn
+# from torchvision import models
 
 from src.backbones.convlstm import ConvLSTM, BConvLSTM
 from src.backbones.ltae import LTAE2d
@@ -127,6 +128,7 @@ class UTAE(nn.Module):
             d_k=d_k,
         )
         self.temporal_aggregator = Temporal_Aggregator(mode=agg_mode)
+        # self.spatial_registration = ShiftSqueezeNet(num_input_channels=2, num_output_features=2)
         self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, padding_mode=padding_mode)
 
     def forward(self, input, batch_positions=None, return_att=False):
@@ -415,6 +417,42 @@ class Temporal_Aggregator(nn.Module):
                 return out
             elif self.mode == "mean":
                 return x.mean(dim=1)
+
+
+# class ShiftSqueezeNet(nn.Module):
+#     def __init__(self, num_input_channels=2, num_output_features=2):
+#         super(ShiftSqueezeNet, self).__init__()
+#
+#         # Load a pre-trained SqueezeNet model using the weights argument
+#         self.squeezenet = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.DEFAULT)
+#
+#         # Modify the first convolutional layer to accept 'num_input_channels' instead of 3 channels
+#         self.squeezenet.features[0] = nn.Conv2d(num_input_channels, 64, kernel_size=(3, 3), stride=(2, 2))
+#
+#         # Remove the classifier part of SqueezeNet (final convolutional layer and activation)
+#         self.squeezenet.classifier = nn.Identity()
+#
+#         # Fully connected layer without bias to output 'num_output_features' (2)
+#         self.fc = nn.Linear(512, num_output_features, bias=False)
+#
+#         nn.init.kaiming_normal_(self.squeezenet.features[0], mode="fan_out", nonlinearity="relu")
+#
+#         self.fc.weight.data.zero_()
+#
+#     def forward(self, x):
+#         # Pass input through the modified SqueezeNet
+#         features = self.squeezenet(x)
+#
+#         # Reshape features to (batch_size, 512, 7, 7)
+#         features = features.view(features.size(0), 512, 7, 7)
+#
+#         # Apply global average pooling
+#         pooled = features.mean(dim=[2, 3])  # Shape: (batch_size, 512)
+#
+#         # Pass through the final fully connected layer
+#         output = self.fc(pooled)
+#
+#         return output
 
 
 class RecUNet(nn.Module):
