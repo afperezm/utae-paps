@@ -306,6 +306,7 @@ class NorthernRoadsDataset(tdata.Dataset):
         self,
         folder,
         norm=True,
+        # splits=None,
         folds=None,
         class_mapping=None,
         reference_date="2020-01-01",
@@ -383,9 +384,13 @@ class NorthernRoadsDataset(tdata.Dataset):
 
         print("Done.")
 
+        # # Select Split samples
         # Select Fold samples
+        # if splits is not None:
         if folds is not None:
+            # self.meta_patch = pd.concat(
             self.meta_patch = pd.concat(
+                # [self.meta_patch[self.meta_patch["Split"] == s] for s in splits]
                 [self.meta_patch[self.meta_patch["Fold"] == f] for f in folds]
             )
 
@@ -400,6 +405,9 @@ class NorthernRoadsDataset(tdata.Dataset):
                     os.path.join(folder, "NORM_{}_patch.json".format(s)), "r"
                 ) as file:
                     norm_values = json.loads(file.read())
+                # selected_folds = splits if splits is not None else range(1, 6)
+                # means = [norm_values["Split_{}".format(f)]["mean"] for f in selected_folds]
+                # stds = [norm_values["Split_{}".format(f)]["std"] for f in selected_folds]
                 selected_folds = folds if folds is not None else range(1, 6)
                 means = [norm_values["Fold_{}".format(f)]["mean"] for f in selected_folds]
                 stds = [norm_values["Fold_{}".format(f)]["std"] for f in selected_folds]
@@ -422,12 +430,16 @@ class NorthernRoadsDataset(tdata.Dataset):
     def load_patch(self, satellite, id_patch):
         image_names = sorted(self.meta_patch.loc[id_patch, f'Images-{satellite}'])
         images = [tiff.imread(os.path.join(self.folder, satellite, f'{name}.tif')) for name in image_names]
+        # return np.stack(images)
         return np.stack([cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC) for image in images])
 
     def load_target(self, id_patch):
         column_name = [col for col in self.meta_patch.columns if col.startswith('Images-')][0]
         image_name = self.meta_patch.loc[id_patch, column_name][0]
+        # image_name = self.meta_patch.loc[id_patch, column_name][0].split('_')[0].split('-')[1]
+        # split = self.meta_patch.loc[id_patch, 'Split']
         target = tiff.imread(os.path.join(self.folder, 'S2_road_masks', f'{image_name}.tif'))
+        # target = tiff.imread(os.path.join(self.folder, 'mass_roads', split, 'map', f'{image_name}_15.tif'))
         target = cv2.resize(target, (256, 256), interpolation=cv2.INTER_CUBIC)
         target = np.array(target, np.float32) / 255.0
         target[target >= 0.5] = 1.0
@@ -481,6 +493,7 @@ def prepare_dates(date_dict, reference_date):
 
 def compute_norm_vals(folder, sat):
     norm_vals = {}
+    # for fold in ['train', 'valid', 'test']:
     for fold in range(1, 6):
         dt = PASTIS_Dataset(folder=folder, norm=False, folds=[fold], sats=[sat])
         means = []
@@ -495,6 +508,7 @@ def compute_norm_vals(folder, sat):
         mean = np.stack(means).mean(axis=0).astype(float)
         std = np.stack(stds).mean(axis=0).astype(float)
 
+        # norm_vals["Split_{}".format(fold)] = dict(mean=list(mean), std=list(std))
         norm_vals["Fold_{}".format(fold)] = dict(mean=list(mean), std=list(std))
 
     with open(os.path.join(folder, "NORM_{}_patch.json".format(sat)), "w") as file:
