@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime
 
 import cv2
@@ -9,6 +10,8 @@ import pandas as pd
 import tifffile as tiff
 import torch
 import torch.utils.data as tdata
+
+DATE_PATTERN = r'^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$'
 
 
 class PASTIS_Dataset(tdata.Dataset):
@@ -437,8 +440,8 @@ class NorthernRoadsDataset(tdata.Dataset):
         image_name = self.meta_patch.loc[id_patch, column_name][0]
         # image_name = self.meta_patch.loc[id_patch, column_name][0].split('_')[0].split('-')[1]
         # split = self.meta_patch.loc[id_patch, 'Split']
-        target = tiff.imread(os.path.join(self.folder, 'S2_road_masks', f'{image_name}.tif'))
-        # target = tiff.imread(os.path.join(self.folder, 'mass_roads', split, 'map', f'{image_name}_15.tif'))
+        mask_name = '_'.join(item for item in image_name.split('_') if not re.match(DATE_PATTERN, item))
+        target = tiff.imread(os.path.join(self.folder, 'S2_class_masks', f'{mask_name}.tif'))
         target = np.array(target, np.float32) / 255.0
         target[target >= 0.5] = 1.0
         target[target < 0.5] = 0.0
