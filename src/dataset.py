@@ -430,8 +430,7 @@ class NorthernRoadsDataset(tdata.Dataset):
     def load_patch(self, satellite, id_patch):
         image_names = sorted(self.meta_patch.loc[id_patch, f'Images-{satellite}'])
         images = [tiff.imread(os.path.join(self.folder, satellite, f'{name}.tif')) for name in image_names]
-        # return np.stack(images)
-        return np.stack([cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC) for image in images])
+        return np.stack(images)
 
     def load_target(self, id_patch):
         column_name = [col for col in self.meta_patch.columns if col.startswith('Images-')][0]
@@ -440,7 +439,6 @@ class NorthernRoadsDataset(tdata.Dataset):
         # split = self.meta_patch.loc[id_patch, 'Split']
         target = tiff.imread(os.path.join(self.folder, 'S2_road_masks', f'{image_name}.tif'))
         # target = tiff.imread(os.path.join(self.folder, 'mass_roads', split, 'map', f'{image_name}_15.tif'))
-        target = cv2.resize(target, (256, 256), interpolation=cv2.INTER_CUBIC)
         target = np.array(target, np.float32) / 255.0
         target[target >= 0.5] = 1.0
         target[target < 0.5] = 0.0
