@@ -4,3 +4,4 @@ numpy
 pandas
 geopandas
 torch_scatter
+tiffile
