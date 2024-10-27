@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 import torch.utils.data as data
 import torchnet as tnt
+import torchmetrics
 
 from src import utils, model_utils
 from src.dataset import PASTIS_Dataset, NorthernRoadsDataset
@@ -115,18 +116,17 @@ def iterate(
     model, data_loader, criterion, config, optimizer=None, mode="train", device=None
 ):
     loss_meter = tnt.meter.AverageValueMeter()
-    iou_meter = IoU(
-        num_classes=config.num_classes,
-        ignore_index=config.ignore_index,
-        cm_device=config.device,
-    )
+    metric1 = torchmetrics.classification.BinaryJaccardIndex().to(device)
+    metric2 = torchmetrics.classification.BinaryAccuracy().to(device)
+    metric3 = torchmetrics.classification.BinaryConfusionMatrix().to(device)
 
     t_start = time.time()
     for i, batch in enumerate(data_loader):
         if device is not None:
             batch = recursive_todevice(batch, device)
         (x, dates), y = batch
-        y = y.long()
+        y = torch.unsqueeze(y, dim=1)
+        y = y.float()
 
         if mode != "train":
             with torch.no_grad():
@@ -140,13 +140,14 @@ def iterate(
             loss.backward()
             optimizer.step()
 
-        with torch.no_grad():
-            pred = out.argmax(dim=1)
-        iou_meter.add(pred, y)
+        metric1.update(out, y)
+        metric2.update(out, y)
+        metric3.update(out, y)
         loss_meter.add(loss.item())
 
         if (i + 1) % config.display_step == 0:
-            miou, acc = iou_meter.get_miou_acc()
+            miou = metric1.compute().item()
+            acc = metric2.compute().item()
             print(
                 "Step [{}/{}], Loss: {:.4f}, Acc : {:.2f}, mIoU {:.2f}".format(
                     i + 1, len(data_loader), loss_meter.value()[0], acc, miou
@@ -156,7 +157,8 @@ def iterate(
     t_end = time.time()
     total_time = t_end - t_start
     print("Epoch time : {:.1f}s".format(total_time))
-    miou, acc = iou_meter.get_miou_acc()
+    miou = metric1.compute().item()
+    acc = metric2.compute().item()
     metrics = {
         "{}_accuracy".format(mode): acc,
         "{}_loss".format(mode): loss_meter.value()[0],
@@ -165,7 +167,7 @@ def iterate(
     }
 
     if mode == "test":
-        return metrics, iou_meter.conf_metric.value()  # confusion matrix
+        return metrics, metric3.compute().item()  # confusion matrix
     else:
         return metrics
 
@@ -313,7 +315,7 @@ def main(config):
 
         weights = torch.ones(config.num_classes, device=device).float()
         weights[config.ignore_index] = 0
-        criterion = nn.CrossEntropyLoss(weight=weights)
+        criterion = nn.BCEWithLogitsLoss()
 
         # Training loop
         trainlog = {}

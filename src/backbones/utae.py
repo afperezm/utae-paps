@@ -129,7 +129,7 @@ class UTAE(nn.Module):
         )
         self.temporal_aggregator = Temporal_Aggregator(mode=agg_mode)
         # self.spatial_registration = ShiftSqueezeNet(num_input_channels=2, num_output_features=2)
-        self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, padding_mode=padding_mode)
+        self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, last_relu=False, padding_mode=padding_mode)
 
     def forward(self, input, batch_positions=None, return_att=False):
         pad_mask = (
