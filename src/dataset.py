@@ -305,6 +305,9 @@ class PASTIS_Dataset(tdata.Dataset):
 
 
 class NorthernRoadsDataset(tdata.Dataset):
+
+    height, width = (128, 128)
+
     def __init__(
         self,
         folder,
@@ -433,7 +436,10 @@ class NorthernRoadsDataset(tdata.Dataset):
     def load_patch(self, satellite, id_patch):
         image_names = sorted(self.meta_patch.loc[id_patch, f'Images-{satellite}'])
         images = [tiff.imread(os.path.join(self.folder, satellite, f'{name}.tif')) for name in image_names]
-        return np.stack(images)
+        images = np.stack(images)  # TxHxWxC
+        y_pad = int((images.shape[1] - self.height) / 2)
+        x_pad = int((images.shape[2] - self.width) / 2)
+        return images[:, y_pad:y_pad + self.height, x_pad:x_pad + self.width, :]
 
     def load_target(self, id_patch):
         column_name = [col for col in self.meta_patch.columns if col.startswith('Images-')][0]
@@ -445,7 +451,9 @@ class NorthernRoadsDataset(tdata.Dataset):
         target = np.array(target, np.float32) / 255.0
         target[target >= 0.5] = 1.0
         target[target < 0.5] = 0.0
-        return target
+        y_pad = int((target.shape[0] - self.height) / 2)
+        x_pad = int((target.shape[1] - self.width) / 2)
+        return target[y_pad:y_pad + self.height, x_pad:x_pad + self.width]
 
     def __getitem__(self, item):
         id_patch = self.id_patches[item]
