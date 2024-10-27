@@ -146,6 +146,13 @@ python train_semantic.py --dataset_folder PATH_TO_DATASET --res_dir OUT_DIR_Sing
 
 ```
 
+
+### Binary Semantic Segmentation
+
+```train
+python train_semantic.py --dataset_folder $HOME/data/massachusetts-ts-dataset/mass_roads/ --res_dir ./results/ --input_dim 4 --out_conv [32,1] --batch_size 4 --ref_date 2018-01-01 --num_classes 1
+```
+
 ### Reference
 
 Please include a citation to the following paper if you use the U-TAE, PaPs or the PASTIS benchmark.
