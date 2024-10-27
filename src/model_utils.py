@@ -6,7 +6,7 @@ def get_model(config, mode="semantic"):
     if mode == "semantic":
         if config.model == "utae":
             model = utae.UTAE(
-                input_dim=10,
+                input_dim=config.input_dim,
                 encoder_widths=config.encoder_widths,
                 decoder_widths=config.decoder_widths,
                 out_conv=config.out_conv,
@@ -29,7 +29,7 @@ def get_model(config, mode="semantic"):
             )
         elif config.model == "fpn":
             model = fpn.FPNConvLSTM(
-                input_dim=10,
+                input_dim=config.input_dim,
                 num_classes=config.num_classes,
                 inconv=[32, 64],
                 n_levels=4,
@@ -43,7 +43,7 @@ def get_model(config, mode="semantic"):
             model = convlstm.ConvLSTM_Seg(
                 num_classes=config.num_classes,
                 input_size=(128, 128),
-                input_dim=10,
+                input_dim=config.input_dim,
                 kernel_size=(3, 3),
                 hidden_dim=160,
             )
@@ -51,13 +51,13 @@ def get_model(config, mode="semantic"):
             model = convgru.ConvGRU_Seg(
                 num_classes=config.num_classes,
                 input_size=(128, 128),
-                input_dim=10,
+                input_dim=config.input_dim,
                 kernel_size=(3, 3),
                 hidden_dim=180,
             )
         elif config.model == "uconvlstm":
             model = utae.RecUNet(
-                input_dim=10,
+                input_dim=config.input_dim,
                 encoder_widths=[64, 64, 64, 128],
                 decoder_widths=[32, 32, 64, 128],
                 out_conv=[32, 20],
@@ -74,7 +74,7 @@ def get_model(config, mode="semantic"):
             )
         elif config.model == "buconvlstm":
             model = utae.RecUNet(
-                input_dim=10,
+                input_dim=config.input_dim,
                 encoder_widths=[64, 64, 64, 128],
                 decoder_widths=[32, 32, 64, 128],
                 out_conv=[32, 20],
@@ -93,7 +93,7 @@ def get_model(config, mode="semantic"):
     elif mode == "panoptic":
         if config.backbone == "utae":
             model = utae.UTAE(
-                input_dim=10,
+                input_dim=config.input_dim,
                 encoder_widths=config.encoder_widths,
                 decoder_widths=config.decoder_widths,
                 out_conv=config.out_conv,
@@ -112,7 +112,7 @@ def get_model(config, mode="semantic"):
             )
         elif config.backbone == "uconvlstm":
             model = utae.RecUNet(
-                input_dim=10,
+                input_dim=config.input_dim,
                 encoder_widths=[64, 64, 64, 128],
                 decoder_widths=[32, 32, 64, 128],
                 out_conv=[32, 20],

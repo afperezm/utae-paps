@@ -31,6 +31,7 @@ parser.add_argument(
     help="Type of architecture to use. Can be one of: (utae/unet3d/fpn/convlstm/convgru/uconvlstm/buconvlstm)",
 )
 ## U-TAE Hyperparameters
+parser.add_argument("--input_dim", default="10", type=int)
 parser.add_argument("--encoder_widths", default="[64,64,64,128]", type=str)
 parser.add_argument("--decoder_widths", default="[32,32,64,128]", type=str)
 parser.add_argument("--out_conv", default="[32, 20]")
