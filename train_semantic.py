@@ -18,7 +18,7 @@ import torchnet as tnt
 import torchmetrics
 
 from src import utils, model_utils
-from src.dataset import PASTIS_Dataset, NorthernRoadsDataset
+from src.dataset import PASTIS_Dataset, S2TSDataset
 from src.learning.metrics import confusion_matrix_analysis
 from src.learning.miou import IoU
 from src.learning.weight_init import weight_init
@@ -265,9 +265,9 @@ def main(config):
         # dt_train = PASTIS_Dataset(**dt_args, folds=train_folds, cache=config.cache)
         # dt_val = PASTIS_Dataset(**dt_args, folds=val_fold, cache=config.cache)
         # dt_test = PASTIS_Dataset(**dt_args, folds=test_fold)
-        dt_train = NorthernRoadsDataset(**dt_args, folds=train_folds)
-        dt_val = NorthernRoadsDataset(**dt_args, folds=val_fold)
-        dt_test = NorthernRoadsDataset(**dt_args, folds=test_fold)
+        dt_train = S2TSDataset(**dt_args, folds=train_folds)
+        dt_val = S2TSDataset(**dt_args, folds=val_fold)
+        dt_test = S2TSDataset(**dt_args, folds=test_fold)
 
         collate_fn = lambda x: utils.pad_collate(x, pad_value=config.pad_value)
         train_loader = data.DataLoader(

@@ -304,7 +304,7 @@ class PASTIS_Dataset(tdata.Dataset):
         return (data, dates), target
 
 
-class NorthernRoadsDataset(tdata.Dataset):
+class S2TSDataset(tdata.Dataset):
 
     height, width = (128, 128)
 
@@ -319,7 +319,7 @@ class NorthernRoadsDataset(tdata.Dataset):
         satellites=None,
     ):
         """
-        Pytorch Dataset class to load samples from the Northern Roads dataset for semantic segmentation.
+        Pytorch Dataset class to load samples from a Sentinel-2 Images Time Series dataset for semantic segmentation.
         The Dataset yields ((data, dates), target) tuples, where:
             - data contains the image time series
             - dates contains the date sequence of the observations expressed in number
@@ -342,7 +342,7 @@ class NorthernRoadsDataset(tdata.Dataset):
             satellites (list): defines the satellites to use (only Sentinel-2 is available
                 in v1.0)
         """
-        super(NorthernRoadsDataset, self).__init__()
+        super(S2TSDataset, self).__init__()
 
         if satellites is None:
             satellites = ["S2_10m"]
