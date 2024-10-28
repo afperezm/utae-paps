@@ -313,8 +313,8 @@ def main(config):
         # Optimizer and Loss
         optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
 
-        weights = torch.ones(config.num_classes, device=device).float()
-        weights[config.ignore_index] = 0
+        # weights = torch.ones(config.num_classes, device=device).float()
+        # weights[config.ignore_index] = 0
         criterion = nn.BCEWithLogitsLoss()
 
         # Training loop
