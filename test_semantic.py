@@ -97,7 +97,7 @@ def main(config):
             # mono_date=config.mono_date,
             # target="semantic",
             # sats=["S2"],
-            satellites=["S2"],
+            satellites=["S2_10m"],
             folds=test_fold,
         )
         collate_fn = lambda x: utils.pad_collate(x, pad_value=config.pad_value)
