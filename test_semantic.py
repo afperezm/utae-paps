@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.utils.data as data
 
 from src import utils, model_utils
-from src.dataset import PASTIS_Dataset
+from src.dataset import PASTIS_Dataset, S2TSDataset
 
 from train_semantic import iterate, overall_performance, save_results, prepare_output
 
@@ -60,6 +60,7 @@ parser.add_argument(
     help="Interval in batches between display of training metrics",
 )
 
+
 def main(config):
     fold_sequence = [
         [[1, 2, 3], [4], [5]],
@@ -89,13 +90,14 @@ def main(config):
             fold = config.fold - 1
 
         # Dataset definition
-        dt_test = PASTIS_Dataset(
+        dt_test = S2TSDataset(
             folder=config.dataset_folder,
             norm=True,
             reference_date=config.ref_date,
-            mono_date=config.mono_date,
-            target="semantic",
-            sats=["S2"],
+            # mono_date=config.mono_date,
+            # target="semantic",
+            # sats=["S2"],
+            satellites=["S2"],
             folds=test_fold,
         )
         collate_fn = lambda x: utils.pad_collate(x, pad_value=config.pad_value)
@@ -115,9 +117,9 @@ def main(config):
         model.load_state_dict(sd["state_dict"])
 
         # Loss
-        weights = torch.ones(config.num_classes, device=device).float()
-        weights[config.ignore_index] = 0
-        criterion = nn.CrossEntropyLoss(weight=weights)
+        # weights = torch.ones(config.num_classes, device=device).float()
+        # weights[config.ignore_index] = 0
+        criterion = nn.BCEWithLogitsLoss()
 
         # Inference
         print("Testing . . .")
