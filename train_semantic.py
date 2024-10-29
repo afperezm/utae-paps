@@ -208,7 +208,7 @@ def save_results(fold, metrics, conf_mat, config):
 
 
 def overall_performance(config):
-    cm = np.zeros((config.num_classes, config.num_classes))
+    cm = np.zeros((max(config.num_classes, 2), max(config.num_classes, 2)))
     for fold in range(1, 6):
         cm += pkl.load(
             open(
