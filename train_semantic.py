@@ -130,10 +130,10 @@ def iterate(
 
         if mode != "train":
             with torch.no_grad():
-                out = model(x, batch_positions=dates)
+                out = model(x, dates, batch_positions=dates)
         else:
             optimizer.zero_grad()
-            out = model(x, batch_positions=dates)
+            out = model(x, dates, batch_positions=dates)
 
         loss = criterion(out, y)
         if mode == "train":

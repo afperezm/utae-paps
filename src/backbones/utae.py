@@ -134,11 +134,11 @@ class UTAE(nn.Module):
         # self.spatial_registration = ShiftSqueezeNet(num_input_channels=2, num_output_features=2)
         self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, last_relu=False, padding_mode=padding_mode)
 
-    def forward(self, input, batch_positions=None, return_att=False):
+    def forward(self, input, dates, batch_positions=None, return_att=False):
         pad_mask = (
             (input == self.pad_value).all(dim=-1).all(dim=-1).all(dim=-1)
         )  # BxT pad mask
-        out = self.shift_block(input)
+        out = self.shift_block.smart_forward(input, dates)
         out = self.in_conv.smart_forward(out)
         feature_maps = [out]
         # SPATIAL ENCODER
