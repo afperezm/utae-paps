@@ -89,6 +89,7 @@ class UTAE(nn.Module):
         else:
             decoder_widths = encoder_widths
 
+        self.shift_block = ShiftResNet18()
         self.in_conv = ConvBlock(
             nkernels=[input_dim] + [encoder_widths[0], encoder_widths[0]],
             pad_value=pad_value,
@@ -137,7 +138,8 @@ class UTAE(nn.Module):
         pad_mask = (
             (input == self.pad_value).all(dim=-1).all(dim=-1).all(dim=-1)
         )  # BxT pad mask
-        out = self.in_conv.smart_forward(input)
+        out = self.shift_block(input)
+        out = self.in_conv.smart_forward(out)
         feature_maps = [out]
         # SPATIAL ENCODER
         for i in range(self.n_stages - 1):
