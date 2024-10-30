@@ -412,6 +412,8 @@ if __name__ == "__main__":
             v = v.replace("]", "")
             config.__setattr__(k, list(map(int, v.split(","))))
 
+    config.ignore_index = None if config.ignore_index == -1 else config.ignore_index
+
     assert config.num_classes == config.out_conv[-1]
 
     pprint.pprint(config)
