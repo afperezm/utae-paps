@@ -3,9 +3,11 @@ U-TAE Implementation
 Author: Vivien Sainte Fare Garnot (github/VSainteuf)
 License: MIT
 """
+import kornia
 import torch
 import torch.nn as nn
-# from torchvision import models
+
+from torchvision import models, transforms
 
 from src.backbones.convlstm import ConvLSTM, BConvLSTM
 from src.backbones.ltae import LTAE2d
@@ -453,6 +455,120 @@ class Temporal_Aggregator(nn.Module):
 #         output = self.fc(pooled)
 #
 #         return output
+
+
+class ShiftResNet18(nn.Module):
+
+    ref_day = 182
+
+    def __init__(self, backbone='random', pad_value=0):
+        super(ShiftResNet18, self).__init__()
+
+        if backbone == 'random':
+            weights = None
+        elif backbone == 'imagenet':
+            weights = models.ResNet18_Weights.DEFAULT
+        else:
+            raise ValueError()
+
+        self.pad_value = pad_value
+
+        resnet = models.resnet18(weights=weights)
+
+        self.first_conv = nn.Conv2d(2, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.first_bn = resnet.bn1
+        self.first_relu = resnet.relu
+        self.first_max_pool = resnet.maxpool
+
+        self.encoder1 = resnet.layer1
+        self.encoder2 = resnet.layer2
+        self.encoder3 = resnet.layer3
+        self.encoder4 = resnet.layer4
+
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(512, 2, bias=False)
+
+        _ = nn.init.kaiming_normal_(self.first_conv.weight, mode="fan_out", nonlinearity="relu")
+        _ = self.fc.weight.data.zero_()
+
+    def forward(self, x):
+
+        x = self.first_conv(x)
+        x = self.first_bn(x)
+        x = self.first_relu(x)
+        x = self.first_max_pool(x)
+
+        x = self.encoder1(x)
+        x = self.encoder2(x)
+        x = self.encoder3(x)
+        x = self.encoder4(x)
+
+        x = self.avg_pool(x)
+        x = torch.flatten(x, 1)
+        x = self.fc(x)
+
+        return x
+
+    def smart_forward(self, x, dates):
+
+        n, t, c, h, w = x.shape
+
+        # # Pick channel (nir)
+        # x_slice = x[:, :, 3:4, :, :]
+        # Pick channel (rgb to grayscale)
+        x_slice = transforms.functional.rgb_to_grayscale(x[:, :, 0:3, :, :])
+        # Select one point along temporal (T) dimension
+        n_indices = torch.arange(x_slice.size(0)).unsqueeze(1)
+        t_indices = torch.argsort(torch.abs(self.ref_day - dates))[:, 0:1]
+        x_ref = x_slice[n_indices, t_indices, :, :, :].expand(-1, t, -1, -1, -1)
+        # Concatenate along channels (C) dimension
+        x_pairs = torch.cat((x_slice, x_ref), dim=2)
+
+        if self.pad_value is not None:
+            pad_mask = (x == self.pad_value).all(dim=-1).all(dim=-1).all(dim=-1)
+            if pad_mask.any():
+                # Forward pairs only for non-padded values
+                temp = self.pad_value * torch.ones((n, t, c, h, w), device=x.device, requires_grad=False)
+                thetas = self.forward(x_pairs[~pad_mask])
+                temp[~pad_mask] = self.transform(x[~pad_mask], thetas, output_range=None)
+                out = temp.view(n * t, c, h, w)
+            else:
+                # No padded values found
+                thetas = self.forward(x_pairs.view(n * t, 2, h, w))
+                out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
+        else:
+            # No padding has been applied
+            thetas = self.forward(x_pairs.view(n * t, 2, h, w))
+            out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
+
+        # Retrieve output dimensions since channel (C) height (H) and width (W) might differ after forwarding
+        _, c, h, w = out.shape
+        out = out.view(n, t, c, h, w)
+
+        return out
+
+    def transform(self, images, thetas, output_range=(0.0, 1.0)):
+        """
+        Shifts images by thetas with grid sampling and bilinear interpolation.
+        Args:
+            images : tensor (B, C, H, W), input images
+            thetas : tensor (B, 2), translation params
+            output_range : tuple (min, max), range of output images
+        Returns:
+            out: tensor (B, C, H, W), shifted images
+        """
+
+        batch_size, _ = thetas.shape
+        warp_matrix = torch.tensor([1.0, 0.0, 0.0, 1.0], device=thetas.device).repeat(1, batch_size).reshape(2 * batch_size, 2)
+        warp_matrix = torch.hstack((warp_matrix, thetas.flip(-1).reshape(2 * batch_size, 1))).reshape(-1, 2, 3)
+
+        _, _, h, w = images.shape
+        new_images = kornia.geometry.warp_affine(images, warp_matrix, dsize=(h, w))
+
+        if output_range is not None:
+            new_images = torch.clamp(new_images, min=output_range[0], max=output_range[1])
+
+        return new_images
 
 
 class RecUNet(nn.Module):
