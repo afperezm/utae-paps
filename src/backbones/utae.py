@@ -28,6 +28,7 @@ class UTAE(nn.Module):
         n_head=16,
         d_model=256,
         d_k=4,
+        shifter=False,
         encoder=False,
         return_maps=False,
         pad_value=0,
@@ -62,6 +63,7 @@ class UTAE(nn.Module):
             n_head (int): Number of heads in LTAE.
             d_model (int): Parameter of LTAE
             d_k (int): Key-Query space dimension
+            shifter (bool): If true, the input is de-shifted with respect to a reference image (default False)
             encoder (bool): If true, the feature maps instead of the class scores are returned (default False)
             return_maps (bool): If true, the feature maps instead of the class scores are returned (default False)
             pad_value (float): Value used by the dataloader for temporal padding.
@@ -79,6 +81,7 @@ class UTAE(nn.Module):
             sum(decoder_widths) if decoder_widths is not None else sum(encoder_widths)
         )
         self.pad_value = pad_value
+        self.shifter = shifter
         self.encoder = encoder
         if encoder:
             self.return_maps = True
@@ -89,7 +92,8 @@ class UTAE(nn.Module):
         else:
             decoder_widths = encoder_widths
 
-        self.shift_block = ShiftResNet18(backbone='imagenet', pad_value=pad_value)
+        if self.shifter:
+            self.shift_block = ShiftResNet18(backbone='imagenet', pad_value=pad_value)
         self.in_conv = ConvBlock(
             nkernels=[input_dim] + [encoder_widths[0], encoder_widths[0]],
             pad_value=pad_value,
@@ -138,7 +142,10 @@ class UTAE(nn.Module):
         pad_mask = (
             (input == self.pad_value).all(dim=-1).all(dim=-1).all(dim=-1)
         )  # BxT pad mask
-        out = self.shift_block.smart_forward(input, batch_positions)
+        if self.shifter:
+            out = self.shift_block.smart_forward(input, batch_positions)
+        else:
+            out = input
         out = self.in_conv.smart_forward(out)
         feature_maps = [out]
         # SPATIAL ENCODER

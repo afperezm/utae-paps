@@ -29,7 +29,7 @@ parser.add_argument(
     "--model",
     default="utae",
     type=str,
-    help="Type of architecture to use. Can be one of: (utae/unet3d/fpn/convlstm/convgru/uconvlstm/buconvlstm)",
+    help="Type of architecture to use. Can be one of: (utae/utaeshiftnet/unet3d/fpn/convlstm/convgru/uconvlstm/buconvlstm)",
 )
 ## U-TAE Hyperparameters
 parser.add_argument("--input_dim", default="10", type=int)
