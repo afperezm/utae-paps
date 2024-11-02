@@ -89,7 +89,7 @@ class UTAE(nn.Module):
         else:
             decoder_widths = encoder_widths
 
-        self.shift_block = ShiftResNet18()
+        self.shift_block = ShiftResNet18(backbone='imagenet', pad_value=pad_value)
         self.in_conv = ConvBlock(
             nkernels=[input_dim] + [encoder_widths[0], encoder_widths[0]],
             pad_value=pad_value,
@@ -463,7 +463,7 @@ class ShiftResNet18(nn.Module):
 
     ref_day = 182
 
-    def __init__(self, backbone='random', pad_value=0):
+    def __init__(self, backbone='random', pad_value=0.0):
         super(ShiftResNet18, self).__init__()
 
         if backbone == 'random':

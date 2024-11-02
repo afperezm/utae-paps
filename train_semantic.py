@@ -93,7 +93,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_classes", default=20, type=int)
 parser.add_argument("--ignore_index", default=-1, type=int)
-parser.add_argument("--pad_value", default=0, type=float)
+parser.add_argument("--pad_value", default=0.0, type=float)
 parser.add_argument("--padding_mode", default="reflect", type=str)
 parser.add_argument(
     "--val_every",
