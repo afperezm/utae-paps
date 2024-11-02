@@ -515,10 +515,17 @@ class ShiftResNet18(nn.Module):
 
         n, t, c, h, w = x.shape
 
+        # Compute the minimum and maximum values across the spatial dimensions (h, w)
+        x_min = x.view(n, t, c, -1).min(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+        x_max = x.view(n, t, c, -1).max(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+
+        # Apply Min-Max normalization
+        x_norm = (x - x_min) / (x_max - x_min + 1e-8)  # Add epsilon to avoid division by zero
+
         # # Pick channel (nir)
         # x_slice = x[:, :, 3:4, :, :]
         # Pick channel (rgb to grayscale)
-        x_slice = transforms.functional.rgb_to_grayscale(x[:, :, 0:3, :, :])
+        x_slice = transforms.functional.rgb_to_grayscale(x_norm[:, :, 0:3, :, :])
         # Select one point along temporal (T) dimension
         n_indices = torch.arange(x_slice.size(0)).unsqueeze(1)
         t_indices = torch.argsort(torch.abs(self.ref_day - dates))[:, 0:1]
