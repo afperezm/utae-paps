@@ -28,7 +28,8 @@ class UTAE(nn.Module):
         n_head=16,
         d_model=256,
         d_k=4,
-        shifter=False,
+        shift_input=False,
+        shift_output=False,
         encoder=False,
         return_maps=False,
         pad_value=0,
@@ -63,7 +64,8 @@ class UTAE(nn.Module):
             n_head (int): Number of heads in LTAE.
             d_model (int): Parameter of LTAE
             d_k (int): Key-Query space dimension
-            shifter (bool): If true, the input is de-shifted with respect to a reference image (default False)
+            shift_input (bool): If true, the input is de-shifted with respect to a reference image (default False)
+            shift_output (bool): If true, the output is de-shifted with respect to the labels (default False)
             encoder (bool): If true, the feature maps instead of the class scores are returned (default False)
             return_maps (bool): If true, the feature maps instead of the class scores are returned (default False)
             pad_value (float): Value used by the dataloader for temporal padding.
@@ -81,7 +83,8 @@ class UTAE(nn.Module):
             sum(decoder_widths) if decoder_widths is not None else sum(encoder_widths)
         )
         self.pad_value = pad_value
-        self.shifter = shifter
+        self.shift_input = shift_input
+        self.shift_output = shift_output
         self.encoder = encoder
         if encoder:
             self.return_maps = True
@@ -92,8 +95,8 @@ class UTAE(nn.Module):
         else:
             decoder_widths = encoder_widths
 
-        if self.shifter:
-            self.shift_block = ShiftResNet18(backbone='imagenet', pad_value=pad_value)
+        if self.shift_input:
+            self.input_shift_block = ShiftResNet18(backbone='imagenet', pad_value=pad_value)
         self.in_conv = ConvBlock(
             nkernels=[input_dim] + [encoder_widths[0], encoder_widths[0]],
             pad_value=pad_value,
@@ -137,13 +140,15 @@ class UTAE(nn.Module):
         self.temporal_aggregator = Temporal_Aggregator(mode=agg_mode)
         # self.spatial_registration = ShiftSqueezeNet(num_input_channels=2, num_output_features=2)
         self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, last_relu=False, padding_mode=padding_mode)
+        if self.shift_output:
+            self.output_shift_block = ShiftResNet18(backbone='imagenet')
 
-    def forward(self, input, batch_positions=None, return_att=False):
+    def forward(self, input, output=None, batch_positions=None, return_att=False):
         pad_mask = (
             (input == self.pad_value).all(dim=-1).all(dim=-1).all(dim=-1)
         )  # BxT pad mask
-        if self.shifter:
-            out = self.shift_block.smart_forward(input, batch_positions)
+        if self.shift_input:
+            out = self.input_shift_block.smart_forward(input, dates=batch_positions)
         else:
             out = input
         out = self.in_conv.smart_forward(out)
@@ -171,6 +176,8 @@ class UTAE(nn.Module):
             return out, maps
         else:
             out = self.out_conv(out)
+            if self.shift_output and output is not None:
+                out = self.output_shift_block.smart_forward(torch.stack([out, output], dim=2), dates=None)
             if return_att:
                 return out, att
             if self.return_maps:
@@ -470,7 +477,7 @@ class ShiftResNet18(nn.Module):
 
     ref_day = 182
 
-    def __init__(self, backbone='random', pad_value=0.0):
+    def __init__(self, backbone='random', pad_value=None):
         super(ShiftResNet18, self).__init__()
 
         if backbone == 'random':
@@ -522,21 +529,26 @@ class ShiftResNet18(nn.Module):
 
         n, t, c, h, w = x.shape
 
-        # Compute the minimum and maximum values across the spatial dimensions (h, w)
-        x_min = x.view(n, t, c, -1).min(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
-        x_max = x.view(n, t, c, -1).max(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+        if dates is not None:
+            # Compute the minimum and maximum values across the spatial dimensions (h, w)
+            x_min = x.view(n, t, c, -1).min(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+            x_max = x.view(n, t, c, -1).max(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
 
-        # Apply Min-Max normalization
-        x_norm = (x - x_min) / (x_max - x_min + 1e-8)  # Add epsilon to avoid division by zero
+            # Apply Min-Max normalization
+            x_norm = (x - x_min) / (x_max - x_min + 1e-8)  # Add epsilon to avoid division by zero
 
-        # # Pick channel (nir)
-        # x_slice = x[:, :, 3:4, :, :]
-        # Pick channel (rgb to grayscale)
-        x_slice = transforms.functional.rgb_to_grayscale(x_norm[:, :, 0:3, :, :])
-        # Select one point along temporal (T) dimension
-        n_indices = torch.arange(x_slice.size(0)).unsqueeze(1)
-        t_indices = torch.argsort(torch.abs(self.ref_day - dates))[:, 0:1]
-        x_ref = x_slice[n_indices, t_indices, :, :, :].expand(-1, t, -1, -1, -1)
+            # # Pick channel (nir)
+            # x_slice = x[:, :, 3:4, :, :]
+            # Pick channel (rgb to grayscale)
+            x_slice = transforms.functional.rgb_to_grayscale(x_norm[:, :, 0:3, :, :])
+            # Select one point along temporal (T) dimension
+            n_indices = torch.arange(x_slice.size(0)).unsqueeze(1)
+            t_indices = torch.argsort(torch.abs(self.ref_day - dates))[:, 0:1]
+            x_ref = x_slice[n_indices, t_indices, :, :, :].expand(-1, t, -1, -1, -1)
+        else:
+            x_slice = torch.sigmoid(x[:, :, 0:1, :, :])
+            x_ref = x[:, :, 1:2, :, :]
+
         # Concatenate along channels (C) dimension
         x_pairs = torch.cat((x_slice, x_ref), dim=2)
 

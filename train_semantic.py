@@ -133,7 +133,10 @@ def iterate(
                 out = model(x, batch_positions=dates)
         else:
             optimizer.zero_grad()
-            out = model(x, batch_positions=dates)
+            if model.shift_output:
+                out = model(x, output=y, batch_positions=dates)
+            else:
+                out = model(x, batch_positions=dates)
 
         loss = criterion(out, y)
         if mode == "train":
