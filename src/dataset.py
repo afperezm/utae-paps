@@ -3,7 +3,7 @@ import os
 import re
 from datetime import datetime
 
-import cv2
+# import cv2
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -306,7 +306,7 @@ class PASTIS_Dataset(tdata.Dataset):
 
 class S2TSDataset(tdata.Dataset):
 
-    height, width = (128, 128)
+    # width, height = (128, 128)
 
     def __init__(
         self,
@@ -428,10 +428,12 @@ class S2TSDataset(tdata.Dataset):
     def load_patch(self, satellite, id_patch):
         image_names = sorted(self.meta_patch.loc[id_patch, f'Images-{satellite}'])
         images = [tiff.imread(os.path.join(self.folder, satellite, f'{name}.tif')) for name in image_names]
+        # images = [cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_CUBIC) for image in images]
         images = np.stack(images)  # TxHxWxC
-        y_pad = int((images.shape[1] - self.height) / 2)
-        x_pad = int((images.shape[2] - self.width) / 2)
-        return images[:, y_pad:y_pad + self.height, x_pad:x_pad + self.width, :]
+        # y_pad = int((images.shape[1] - self.height) / 2)
+        # x_pad = int((images.shape[2] - self.width) / 2)
+        # return images[:, y_pad:y_pad + self.height, x_pad:x_pad + self.width, :]
+        return images
 
     def load_target(self, id_patch):
         column_name = [col for col in self.meta_patch.columns if col.startswith('Images-')][0]
@@ -440,12 +442,14 @@ class S2TSDataset(tdata.Dataset):
         # split = self.meta_patch.loc[id_patch, 'Split']
         mask_name = '_'.join(item for item in image_name.split('_') if not re.match(DATE_PATTERN, item))
         target = tiff.imread(os.path.join(self.folder, 'S2_class_masks', f'{mask_name}.tif'))
+        # target = cv2.resize(target, (self.width, self.height), interpolation=cv2.INTER_CUBIC)
         target = np.array(target, np.float32) / 255.0
         target[target >= 0.5] = 1.0
         target[target < 0.5] = 0.0
-        y_pad = int((target.shape[0] - self.height) / 2)
-        x_pad = int((target.shape[1] - self.width) / 2)
-        return target[y_pad:y_pad + self.height, x_pad:x_pad + self.width]
+        # y_pad = int((target.shape[0] - self.height) / 2)
+        # x_pad = int((target.shape[1] - self.width) / 2)
+        # return target[y_pad:y_pad + self.height, x_pad:x_pad + self.width]
+        return target
 
     def __getitem__(self, item):
         id_patch = self.id_patches[item]
