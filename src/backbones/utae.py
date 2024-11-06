@@ -567,11 +567,15 @@ class ShiftResNet18(nn.Module):
         else:
             # No padding has been applied
             thetas = self.forward(x_pairs.view(n * t, 2, h, w))
-            out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
+            if dates is not None:
+                out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
+            else:
+                out = self.transform(x[:, :, 0, :, :], thetas, output_range=None)
 
         # Retrieve output dimensions since channel (C) height (H) and width (W) might differ after forwarding
-        _, c, h, w = out.shape
-        out = out.view(n, t, c, h, w)
+        if dates is not None:
+            _, c, h, w = out.shape
+            out = out.view(n, t, c, h, w)
 
         return out
 
