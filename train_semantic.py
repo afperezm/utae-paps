@@ -262,6 +262,7 @@ def main(config):
             # mono_date=config.mono_date,
             # target="semantic",
             # sats=["S2"],
+            image_shape=(256, 256),
             satellites=["S2_10m"]
         )
 

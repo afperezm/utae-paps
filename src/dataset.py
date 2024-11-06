@@ -306,8 +306,6 @@ class PASTIS_Dataset(tdata.Dataset):
 
 class S2TSDataset(tdata.Dataset):
 
-    width, height = (128, 128)
-
     def __init__(
         self,
         folder,
@@ -315,6 +313,7 @@ class S2TSDataset(tdata.Dataset):
         # splits=None,
         folds=None,
         reference_date="2020-01-01",
+        image_shape=(250, 250),
         satellites=None,
     ):
         """
@@ -334,6 +333,8 @@ class S2TSDataset(tdata.Dataset):
                 of observation dates (in terms of number of days since the reference
                 date). This sequence of dates is used for instance for the positional
                 encoding in attention based approaches.
+            image_shape (tuple): Tuple of floats specifying the width and height of
+                retrieved images and labels. By default (250, 250).
             folds (list, optional): List of ints specifying which of the 5 official
                 folds to load. By default (when None is specified) all folds are loaded.
             satellites (list): defines the satellites to use (only Sentinel-2 is available
@@ -348,6 +349,7 @@ class S2TSDataset(tdata.Dataset):
         self.norm = norm
         self.reference_date = datetime(*map(int, reference_date.split("-")))
         self.satellites = satellites
+        self.width, self.height = image_shape
 
         # Get metadata
         print("Reading patch metadata . . .")
@@ -446,8 +448,8 @@ class S2TSDataset(tdata.Dataset):
         if target.shape != (self.width, self.height):
             target = cv2.resize(target, (self.width, self.height), interpolation=cv2.INTER_CUBIC)
         target = np.array(target, np.float32) / 255.0
-        target[target >= 0.1] = 1.0
-        target[target < 0.1] = 0.0
+        target[target >= 0.5] = 1.0
+        target[target < 0.5] = 0.0
         # y_pad = int((target.shape[0] - self.height) / 2)
         # x_pad = int((target.shape[1] - self.width) / 2)
         # return target[y_pad:y_pad + self.height, x_pad:x_pad + self.width]
