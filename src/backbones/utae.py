@@ -437,40 +437,112 @@ class Temporal_Aggregator(nn.Module):
                 return x.mean(dim=1)
 
 
-# class ShiftSqueezeNet(nn.Module):
-#     def __init__(self, num_input_channels=2, num_output_features=2):
-#         super(ShiftSqueezeNet, self).__init__()
-#
-#         # Load a pre-trained SqueezeNet model using the weights argument
-#         self.squeezenet = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.DEFAULT)
-#
-#         # Modify the first convolutional layer to accept 'num_input_channels' instead of 3 channels
-#         self.squeezenet.features[0] = nn.Conv2d(num_input_channels, 64, kernel_size=(3, 3), stride=(2, 2))
-#
-#         # Remove the classifier part of SqueezeNet (final convolutional layer and activation)
-#         self.squeezenet.classifier = nn.Identity()
-#
-#         # Fully connected layer without bias to output 'num_output_features' (2)
-#         self.fc = nn.Linear(512, num_output_features, bias=False)
-#
-#         nn.init.kaiming_normal_(self.squeezenet.features[0], mode="fan_out", nonlinearity="relu")
-#
-#         self.fc.weight.data.zero_()
-#
-#     def forward(self, x):
-#         # Pass input through the modified SqueezeNet
-#         features = self.squeezenet(x)
-#
-#         # Reshape features to (batch_size, 512, 7, 7)
-#         features = features.view(features.size(0), 512, 7, 7)
-#
-#         # Apply global average pooling
-#         pooled = features.mean(dim=[2, 3])  # Shape: (batch_size, 512)
-#
-#         # Pass through the final fully connected layer
-#         output = self.fc(pooled)
-#
-#         return output
+class ShiftSqueezeNet(nn.Module):
+
+    ref_day = 182
+
+    def __init__(self, dropout=0.5, pad_value=None):
+        super(ShiftSqueezeNet, self).__init__()
+
+        self.pad_value = pad_value
+
+        squeezenet = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.DEFAULT)
+        squeezenet.features[0] = nn.Conv2d(2, 64, kernel_size=3, stride=2)
+
+        self.features = squeezenet.features
+        self.classifier = nn.Sequential(
+            nn.Dropout(p=dropout),
+            nn.Conv2d(512, 2, kernel_size=1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d(1)
+        )
+
+        _ = nn.init.kaiming_normal_(self.features[0].weight, mode="fan_out", nonlinearity="relu")
+        _ = self.classifier[1].weight.data.zero_()
+
+    def forward(self, x):
+
+        x = self.features(x)
+        x = self.classifier(x)
+
+        return x
+
+    def smart_forward(self, x, dates):
+
+        n, t, c, h, w = x.shape
+
+        if dates is not None:
+            # Compute the minimum and maximum values across the spatial dimensions (h, w)
+            x_min = x.view(n, t, c, -1).min(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+            x_max = x.view(n, t, c, -1).max(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+
+            # Apply Min-Max normalization
+            x_norm = (x - x_min) / (x_max - x_min + 1e-8)  # Add epsilon to avoid division by zero
+
+            # # Pick channel (nir)
+            # x_slice = x[:, :, 3:4, :, :]
+            # Pick channel (rgb to grayscale)
+            x_slice = transforms.functional.rgb_to_grayscale(x_norm[:, :, 0:3, :, :])
+            # Select one point along temporal (T) dimension
+            n_indices = torch.arange(x_slice.size(0)).unsqueeze(1)
+            t_indices = torch.argsort(torch.abs(self.ref_day - dates))[:, 0:1]
+            x_ref = x_slice[n_indices, t_indices, :, :, :].expand(-1, t, -1, -1, -1)
+        else:
+            x_slice = torch.sigmoid(x[:, :, 0:1, :, :])
+            x_ref = x[:, :, 1:2, :, :]
+
+        # Concatenate along channels (C) dimension
+        x_pairs = torch.cat((x_slice, x_ref), dim=2)
+
+        if self.pad_value is not None:
+            pad_mask = (x == self.pad_value).all(dim=-1).all(dim=-1).all(dim=-1)
+            if pad_mask.any():
+                # Forward pairs only for non-padded values
+                temp = self.pad_value * torch.ones((n, t, c, h, w), device=x.device, requires_grad=False)
+                thetas = self.forward(x_pairs[~pad_mask])
+                temp[~pad_mask] = self.transform(x[~pad_mask], thetas, output_range=None)
+                out = temp.view(n * t, c, h, w)
+            else:
+                # No padded values found
+                thetas = self.forward(x_pairs.view(n * t, 2, h, w))
+                out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
+        else:
+            # No padding has been applied
+            thetas = self.forward(x_pairs.view(n * t, 2, h, w))
+            if dates is not None:
+                out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
+            else:
+                out = self.transform(x[:, :, 0, :, :], thetas, output_range=None)
+
+        # Retrieve output dimensions since channel (C) height (H) and width (W) might differ after forwarding
+        if dates is not None:
+            _, c, h, w = out.shape
+            out = out.view(n, t, c, h, w)
+
+        return out
+
+    def transform(self, images, thetas, output_range=(0.0, 1.0)):
+        """
+        Shifts images by thetas with grid sampling and bilinear interpolation.
+        Args:
+            images : tensor (B, C, H, W), input images
+            thetas : tensor (B, 2), translation params
+            output_range : tuple (min, max), range of output images
+        Returns:
+            out: tensor (B, C, H, W), shifted images
+        """
+
+        batch_size, _ = thetas.shape
+        warp_matrix = torch.tensor([1.0, 0.0, 0.0, 1.0], device=thetas.device).repeat(1, batch_size).reshape(2 * batch_size, 2)
+        warp_matrix = torch.hstack((warp_matrix, thetas.flip(-1).reshape(2 * batch_size, 1))).reshape(-1, 2, 3)
+
+        _, _, h, w = images.shape
+        new_images = kornia.geometry.warp_affine(images, warp_matrix, dsize=(h, w))
+
+        if output_range is not None:
+            new_images = torch.clamp(new_images, min=output_range[0], max=output_range[1])
+
+        return new_images
 
 
 class ShiftResNet18(nn.Module):
