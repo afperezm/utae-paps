@@ -6,6 +6,7 @@ License: MIT
 import kornia
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from torchvision import models, transforms
 
@@ -532,12 +533,15 @@ class ShiftSqueezeNet(nn.Module):
             out: tensor (B, C, H, W), shifted images
         """
 
-        batch_size, _ = thetas.shape
-        warp_matrix = torch.tensor([1.0, 0.0, 0.0, 1.0], device=thetas.device).repeat(1, batch_size).reshape(2 * batch_size, 2)
-        warp_matrix = torch.hstack((warp_matrix, thetas.flip(-1).reshape(2 * batch_size, 1))).reshape(-1, 2, 3)
+        n, c, h, w = images.shape
 
-        _, _, h, w = images.shape
-        new_images = kornia.geometry.warp_affine(images, warp_matrix, dsize=(h, w))
+        thetas *= torch.tensor([[-2 / h, -2 / w]], device=thetas.device).repeat(n, 1)
+
+        warp_matrix = torch.tensor([1.0, 0.0, 0.0, 1.0], device=thetas.device).repeat(1, n).reshape(2 * n, 2)
+        warp_matrix = torch.hstack((warp_matrix, thetas.flip(-1).reshape(2 * n, 1))).reshape(-1, 2, 3)
+
+        grid = F.affine_grid(warp_matrix, images.size(), align_corners=False)
+        new_images = F.grid_sample(images, grid, align_corners=False, mode='bilinear', padding_mode='zeros')
 
         if output_range is not None:
             new_images = torch.clamp(new_images, min=output_range[0], max=output_range[1])
@@ -662,12 +666,15 @@ class ShiftResNet18(nn.Module):
             out: tensor (B, C, H, W), shifted images
         """
 
-        batch_size, _ = thetas.shape
-        warp_matrix = torch.tensor([1.0, 0.0, 0.0, 1.0], device=thetas.device).repeat(1, batch_size).reshape(2 * batch_size, 2)
-        warp_matrix = torch.hstack((warp_matrix, thetas.flip(-1).reshape(2 * batch_size, 1))).reshape(-1, 2, 3)
+        n, c, h, w = images.shape
 
-        _, _, h, w = images.shape
-        new_images = kornia.geometry.warp_affine(images, warp_matrix, dsize=(h, w))
+        thetas *= torch.tensor([[-2 / h, -2 / w]], device=thetas.device).repeat(n, 1)
+
+        warp_matrix = torch.tensor([1.0, 0.0, 0.0, 1.0], device=thetas.device).repeat(1, n).reshape(2 * n, 2)
+        warp_matrix = torch.hstack((warp_matrix, thetas.flip(-1).reshape(2 * n, 1))).reshape(-1, 2, 3)
+
+        grid = F.affine_grid(warp_matrix, images.size(), align_corners=False)
+        new_images = F.grid_sample(images, grid, align_corners=False, mode='bilinear', padding_mode='zeros')
 
         if output_range is not None:
             new_images = torch.clamp(new_images, min=output_range[0], max=output_range[1])
