@@ -677,10 +677,10 @@ class ShiftResNet18(nn.Module):
 
         n, c, h, w = images.shape
 
-        thetas *= torch.tensor([[-2 / h, -2 / w]], device=thetas.device).repeat(n, 1)
+        thetas *= torch.tensor([[-2 / w, -2 / h]], device=thetas.device).repeat(n, 1)
 
         warp_matrix = torch.tensor([1.0, 0.0, 0.0, 1.0], device=thetas.device).repeat(1, n).reshape(2 * n, 2)
-        warp_matrix = torch.hstack((warp_matrix, thetas.flip(-1).reshape(2 * n, 1))).reshape(-1, 2, 3)
+        warp_matrix = torch.hstack((warp_matrix, thetas.reshape(2 * n, 1))).reshape(-1, 2, 3)
 
         grid = F.affine_grid(warp_matrix, images.size(), align_corners=False)
         new_images = F.grid_sample(images, grid, align_corners=False, mode='bilinear', padding_mode='zeros')
