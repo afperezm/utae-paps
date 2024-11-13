@@ -651,11 +651,11 @@ class ShiftResNet18(nn.Module):
 
         n, v, c, h, w = x.shape
 
-        predictions = x[:, 0:1, :, :]
+        predictions = x[:, 0, :, :, :]
         predictions_activated = torch.sigmoid(predictions)
-        masks = x[:, 1:2, :, :]
+        masks = x[:, 1, :, :, :]
 
-        x = torch.cat((predictions_activated, masks), dim=1)
+        x = torch.stack([predictions_activated, masks], dim=1)
         x = x.view(n, v * c, h, w)
 
         thetas = self.forward(x)
