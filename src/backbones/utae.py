@@ -149,7 +149,7 @@ class UTAE(nn.Module):
             (input == self.pad_value).all(dim=-1).all(dim=-1).all(dim=-1)
         )  # BxT pad mask
         if self.shift_input:
-            out = self.input_shift_block.smart_forward(input, dates=batch_positions)
+            out = self.input_shift_block.smart_forward_input(input, dates=batch_positions)
         else:
             out = input
         out = self.in_conv.smart_forward(out)
@@ -178,7 +178,7 @@ class UTAE(nn.Module):
         else:
             out = self.out_conv(out)
             if self.shift_output and output is not None:
-                out = self.output_shift_block.smart_forward(torch.stack([out, output], dim=2), dates=None)
+                out = self.output_shift_block.smart_forward_output(torch.stack([out, output], dim=1))
             if return_att:
                 return out, att
             if self.return_maps:
@@ -551,9 +551,7 @@ class ShiftSqueezeNet(nn.Module):
 
 class ShiftResNet18(nn.Module):
 
-    ref_day = 182
-
-    def __init__(self, backbone='random', pad_value=None):
+    def __init__(self, backbone='random', ref_day=182, pad_value=None):
         super(ShiftResNet18, self).__init__()
 
         if backbone == 'random':
@@ -563,6 +561,7 @@ class ShiftResNet18(nn.Module):
         else:
             raise ValueError()
 
+        self.ref_day = ref_day
         self.pad_value = pad_value
 
         resnet = models.resnet18(weights=weights)
@@ -601,29 +600,25 @@ class ShiftResNet18(nn.Module):
 
         return x
 
-    def smart_forward(self, x, dates):
+    def smart_forward_input(self, x, dates):
 
         n, t, c, h, w = x.shape
 
-        if dates is not None:
-            # Compute the minimum and maximum values across the spatial dimensions (h, w)
-            x_min = x.view(n, t, c, -1).min(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
-            x_max = x.view(n, t, c, -1).max(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+        # Compute the minimum and maximum values across the spatial dimensions (h, w)
+        x_min = x.view(n, t, c, -1).min(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+        x_max = x.view(n, t, c, -1).max(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
 
-            # Apply Min-Max normalization
-            x_norm = (x - x_min) / (x_max - x_min + 1e-8)  # Add epsilon to avoid division by zero
+        # Apply Min-Max normalization
+        x_norm = (x - x_min) / (x_max - x_min + 1e-8)  # Add epsilon to avoid division by zero
 
-            # # Pick channel (nir)
-            # x_slice = x[:, :, 3:4, :, :]
-            # Pick channel (rgb to grayscale)
-            x_slice = transforms.functional.rgb_to_grayscale(x_norm[:, :, 0:3, :, :])
-            # Select one point along temporal (T) dimension
-            n_indices = torch.arange(x_slice.size(0)).unsqueeze(1)
-            t_indices = torch.argsort(torch.abs(self.ref_day - dates))[:, 0:1]
-            x_ref = x_slice[n_indices, t_indices, :, :, :].expand(-1, t, -1, -1, -1)
-        else:
-            x_slice = torch.sigmoid(x[:, :, 0:1, :, :])
-            x_ref = x[:, :, 1:2, :, :]
+        # # Pick channel (nir)
+        # x_slice = x[:, :, 3:4, :, :]
+        # Pick channel (rgb to grayscale)
+        x_slice = transforms.functional.rgb_to_grayscale(x_norm[:, :, 0:3, :, :])
+        # Select one point along temporal (T) dimension
+        n_indices = torch.arange(x_slice.size(0)).unsqueeze(1)
+        t_indices = torch.argsort(torch.abs(self.ref_day - dates))[:, 0:1]
+        x_ref = x_slice[n_indices, t_indices, :, :, :].expand(-1, t, -1, -1, -1)
 
         # Concatenate along channels (C) dimension
         x_pairs = torch.cat((x_slice, x_ref), dim=2)
@@ -643,17 +638,31 @@ class ShiftResNet18(nn.Module):
         else:
             # No padding has been applied
             thetas = self.forward(x_pairs.view(n * t, 2, h, w))
-            if dates is not None:
-                out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
-            else:
-                out = self.transform(x[:, :, 0, :, :], thetas, output_range=None)
+            # if dates is not None:
+            out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
 
         # Retrieve output dimensions since channel (C) height (H) and width (W) might differ after forwarding
-        if dates is not None:
-            _, c, h, w = out.shape
-            out = out.view(n, t, c, h, w)
+        _, c, h, w = out.shape
+        out = out.view(n, t, c, h, w)
 
         return out
+
+    def smart_forward_output(self, x):
+
+        n, v, c, h, w = x.shape
+
+        predictions = x[:, 0:1, :, :]
+        predictions_activated = torch.sigmoid(predictions)
+        masks = x[:, 1:2, :, :]
+
+        x = torch.cat((predictions_activated, masks), dim=1)
+        x = x.view(n, v * c, h, w)
+
+        thetas = self.forward(x)
+
+        predictions_shifted = self.transform(predictions, thetas, output_range=None)
+
+        return predictions_shifted
 
     def transform(self, images, thetas, output_range=(0.0, 1.0)):
         """
