@@ -441,11 +441,10 @@ class Temporal_Aggregator(nn.Module):
 
 class ShiftSqueezeNet(nn.Module):
 
-    ref_day = 182
-
-    def __init__(self, dropout=0.5, pad_value=None):
+    def __init__(self, dropout=0.5, ref_day=182, pad_value=None):
         super(ShiftSqueezeNet, self).__init__()
 
+        self.ref_day = ref_day
         self.pad_value = pad_value
 
         squeezenet = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.DEFAULT)
@@ -469,29 +468,25 @@ class ShiftSqueezeNet(nn.Module):
 
         return x
 
-    def smart_forward(self, x, dates):
+    def smart_forward_input(self, x, dates):
 
         n, t, c, h, w = x.shape
 
-        if dates is not None:
-            # Compute the minimum and maximum values across the spatial dimensions (h, w)
-            x_min = x.view(n, t, c, -1).min(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
-            x_max = x.view(n, t, c, -1).max(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+        # Compute the minimum and maximum values across the spatial dimensions (h, w)
+        x_min = x.view(n, t, c, -1).min(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
+        x_max = x.view(n, t, c, -1).max(dim=3, keepdim=True)[0].view(n, t, c, 1, 1)
 
-            # Apply Min-Max normalization
-            x_norm = (x - x_min) / (x_max - x_min + 1e-8)  # Add epsilon to avoid division by zero
+        # Apply Min-Max normalization
+        x_norm = (x - x_min) / (x_max - x_min + 1e-8)  # Add epsilon to avoid division by zero
 
-            # # Pick channel (nir)
-            # x_slice = x[:, :, 3:4, :, :]
-            # Pick channel (rgb to grayscale)
-            x_slice = transforms.functional.rgb_to_grayscale(x_norm[:, :, 0:3, :, :])
-            # Select one point along temporal (T) dimension
-            n_indices = torch.arange(x_slice.size(0)).unsqueeze(1)
-            t_indices = torch.argsort(torch.abs(self.ref_day - dates))[:, 0:1]
-            x_ref = x_slice[n_indices, t_indices, :, :, :].expand(-1, t, -1, -1, -1)
-        else:
-            x_slice = torch.sigmoid(x[:, :, 0:1, :, :])
-            x_ref = x[:, :, 1:2, :, :]
+        # # Pick channel (nir)
+        # x_slice = x[:, :, 3:4, :, :]
+        # Pick channel (rgb to grayscale)
+        x_slice = transforms.functional.rgb_to_grayscale(x_norm[:, :, 0:3, :, :])
+        # Select one point along temporal (T) dimension
+        n_indices = torch.arange(x_slice.size(0)).unsqueeze(1)
+        t_indices = torch.argsort(torch.abs(self.ref_day - dates))[:, 0:1]
+        x_ref = x_slice[n_indices, t_indices, :, :, :].expand(-1, t, -1, -1, -1)
 
         # Concatenate along channels (C) dimension
         x_pairs = torch.cat((x_slice, x_ref), dim=2)
@@ -511,17 +506,26 @@ class ShiftSqueezeNet(nn.Module):
         else:
             # No padding has been applied
             thetas = self.forward(x_pairs.view(n * t, 2, h, w))
-            if dates is not None:
-                out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
-            else:
-                out = self.transform(x[:, :, 0, :, :], thetas, output_range=None)
+            # if dates is not None:
+            out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
 
         # Retrieve output dimensions since channel (C) height (H) and width (W) might differ after forwarding
-        if dates is not None:
-            _, c, h, w = out.shape
-            out = out.view(n, t, c, h, w)
+        _, c, h, w = out.shape
+        out = out.view(n, t, c, h, w)
 
         return out
+
+    def smart_forward_output(self, predictions, masks):
+
+        n, c, h, w = predictions.shape
+
+        x = torch.stack([torch.sigmoid(predictions), masks], dim=1)
+        x = x.view(n, 2 * c, h, w)
+
+        thetas = self.forward(x)
+        predictions_shifted = self.transform(predictions, thetas, output_range=None)
+
+        return predictions_shifted
 
     def transform(self, images, thetas, output_range=(0.0, 1.0)):
         """
@@ -536,10 +540,10 @@ class ShiftSqueezeNet(nn.Module):
 
         n, c, h, w = images.shape
 
-        thetas *= torch.tensor([[-2 / h, -2 / w]], device=thetas.device).repeat(n, 1)
+        thetas *= torch.tensor([[-2 / w, -2 / h]], device=thetas.device).repeat(n, 1)
 
         warp_matrix = torch.tensor([1.0, 0.0, 0.0, 1.0], device=thetas.device).repeat(1, n).reshape(2 * n, 2)
-        warp_matrix = torch.hstack((warp_matrix, thetas.flip(-1).reshape(2 * n, 1))).reshape(-1, 2, 3)
+        warp_matrix = torch.hstack((warp_matrix, thetas.reshape(2 * n, 1))).reshape(-1, 2, 3)
 
         grid = F.affine_grid(warp_matrix, images.size(), align_corners=False)
         new_images = F.grid_sample(images, grid, align_corners=False, mode='bilinear', padding_mode='zeros')
