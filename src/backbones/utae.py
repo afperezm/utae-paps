@@ -143,7 +143,7 @@ class UTAE(nn.Module):
         self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, last_relu=False, padding_mode=padding_mode)
         del self.out_conv.conv.conv[4]
         if self.shift_output:
-            self.output_shift_block = ShiftResNet18(backbone='imagenet')
+            self.output_shift_block = ShiftResNet18(backbone='imagenet', num_channels=out_conv[-1])
 
     def forward(self, input, output=None, batch_positions=None, return_att=False):
         pad_mask = (
@@ -537,11 +537,11 @@ class BaseShiftNet(nn.Module):
 
 class ShiftSqueezeNet(BaseShiftNet):
 
-    def __init__(self, dropout=0.5, ref_day=182, pad_value=None):
+    def __init__(self, num_channels, dropout=0.5, ref_day=182, pad_value=None):
         super(ShiftSqueezeNet, self).__init__(ref_day=ref_day, pad_value=pad_value)
 
         squeezenet = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.DEFAULT)
-        squeezenet.features[0] = nn.Conv2d(2, 64, kernel_size=3, stride=2)
+        squeezenet.features[0] = nn.Conv2d(2 * num_channels, 64, kernel_size=3, stride=2)
 
         self.features = squeezenet.features
         self.classifier = nn.Sequential(
@@ -561,13 +561,13 @@ class ShiftSqueezeNet(BaseShiftNet):
 
 class ShiftResNet18(BaseShiftNet):
 
-    def __init__(self, backbone='random', ref_day=182, pad_value=None):
+    def __init__(self, num_channels, backbone='random', ref_day=182, pad_value=None):
         super(ShiftResNet18, self).__init__(ref_day=ref_day, pad_value=pad_value)
 
         weights = None if backbone == 'random' else models.ResNet18_Weights.DEFAULT
         resnet = models.resnet18(weights=weights)
 
-        self.first_conv = nn.Conv2d(2, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.first_conv = nn.Conv2d(2 * num_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.first_bn = resnet.bn1
         self.first_relu = resnet.relu
         self.first_max_pool = resnet.maxpool
