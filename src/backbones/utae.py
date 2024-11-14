@@ -179,7 +179,7 @@ class UTAE(nn.Module):
         else:
             out = self.out_conv(out)
             if self.shift_output and output is not None:
-                out = self.output_shift_block.smart_forward_output(torch.stack([out, output], dim=1))
+                out = self.output_shift_block.smart_forward_output(out, output)
             if return_att:
                 return out, att
             if self.return_maps:
@@ -648,19 +648,14 @@ class ShiftResNet18(nn.Module):
 
         return out
 
-    def smart_forward_output(self, x):
+    def smart_forward_output(self, predictions, masks):
 
-        n, v, c, h, w = x.shape
+        n, c, h, w = predictions.shape
 
-        predictions = x[:, 0, :, :, :]
-        predictions_activated = torch.sigmoid(predictions)
-        masks = x[:, 1, :, :, :]
-
-        x = torch.stack([predictions_activated, masks], dim=1)
-        x = x.view(n, v * c, h, w)
+        x = torch.stack([torch.sigmoid(predictions), masks], dim=1)
+        x = x.view(n, 2 * c, h, w)
 
         thetas = self.forward(x)
-
         predictions_shifted = self.transform(predictions, thetas, output_range=None)
 
         return predictions_shifted
