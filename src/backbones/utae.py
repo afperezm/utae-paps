@@ -141,6 +141,7 @@ class UTAE(nn.Module):
         self.temporal_aggregator = Temporal_Aggregator(mode=agg_mode)
         # self.spatial_registration = ShiftSqueezeNet(num_input_channels=2, num_output_features=2)
         self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, last_relu=False, padding_mode=padding_mode)
+        del self.out_conv.conv.conv[4]
         if self.shift_output:
             self.output_shift_block = ShiftResNet18(backbone='imagenet')
 
