@@ -144,6 +144,8 @@ class UTAE(nn.Module):
         del self.out_conv.conv.conv[4]
         if self.shift_output:
             self.output_shift_block = ShiftResNet18(backbone='imagenet', num_channels=out_conv[-1])
+        self.nl = nn.BatchNorm2d(out_conv[-1])
+        self.last_relu = nn.ReLU()
 
     def forward(self, input, output=None, batch_positions=None, return_att=False):
         pad_mask = (
@@ -180,6 +182,8 @@ class UTAE(nn.Module):
             out = self.out_conv(out)
             if self.shift_output and output is not None:
                 out = self.output_shift_block.smart_forward_output(out, output)
+            out = self.nl(out)
+            out = self.last_relu(out)
             if return_att:
                 return out, att
             if self.return_maps:
