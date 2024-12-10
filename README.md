@@ -153,6 +153,18 @@ python train_semantic.py --dataset_folder PATH_TO_DATASET --res_dir OUT_DIR_Sing
 python train_semantic.py --dataset_folder $HOME/data/massachusetts-ts-dataset/mass_roads/ --res_dir ./results/ --input_dim 4 --out_conv [32,1] --batch_size 4 --ref_date 2018-01-01 --num_classes 1
 ```
 
+```train
+python train_semantic.py --model utae --dataset_folder /home/perezmaf/data/northern-cities/gillam_mb_canada/gillam_roads/ --res_dir ./results/utae_gillam_roads/ --input_dim 4 --out_conv [32,1] --batch_size 1 --ref_date 2020-01-01 --num_classes 1
+```
+
+```train
+python train_semantic.py --dataset_folder /home/perezmaf/data/pastis-dataset/ --res_dir ./results/utae_shiftnet_pastis/ --batch_size 2
+```
+
+```train
+python train_semantic.py --model utaeshiftnet --dataset_folder $HOME/data/massachusetts-ts-dataset/mass_buildings/ --res_dir ./results/utae_shiftnet_massldgs_ts/ --input_dim 4 --out_conv [32,1] --batch_size 2 --ref_date 2018-01-01 --num_classes 1
+```
+
 ### Reference
 
 Please include a citation to the following paper if you use the U-TAE, PaPs or the PASTIS benchmark.
