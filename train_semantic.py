@@ -134,6 +134,7 @@ def iterate(
         else:
             optimizer.zero_grad()
             if model.shift_output:
+                # y_encoded = F.one_hot(masks, num_classes=20).permute(0, 3, 1, 2)
                 out = model(x, output=y, batch_positions=dates)
             else:
                 out = model(x, batch_positions=dates)

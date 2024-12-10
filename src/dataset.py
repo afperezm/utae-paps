@@ -504,6 +504,7 @@ def compute_norm_vals(folder, sat):
     # for fold in ['train', 'valid', 'test']:
     for fold in range(1, 6):
         dt = PASTIS_Dataset(folder=folder, norm=False, folds=[fold], sats=[sat])
+        # dt = S2TSDataset(folder=folder, norm=False, folds=[fold], reference_date="2020-01-01", image_shape=(256, 256), satellites=[sat])
         means = []
         stds = []
         for i, b in enumerate(dt):
