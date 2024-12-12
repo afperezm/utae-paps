@@ -141,11 +141,11 @@ class UTAE(nn.Module):
         self.temporal_aggregator = Temporal_Aggregator(mode=agg_mode)
         # self.spatial_registration = ShiftSqueezeNet(num_input_channels=2, num_output_features=2)
         self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, last_relu=False, padding_mode=padding_mode)
-        del self.out_conv.conv.conv[4]
+        # del self.out_conv.conv.conv[4]
         if self.shift_output:
             self.output_shift_block = ShiftResNet18(backbone='imagenet', num_channels=out_conv[-1])
-        self.nl = nn.BatchNorm2d(out_conv[-1])
-        self.last_relu = nn.ReLU()
+        # self.nl = nn.BatchNorm2d(out_conv[-1])
+        # self.last_relu = nn.ReLU()
 
     def forward(self, input, output=None, batch_positions=None, return_att=False):
         pad_mask = (
@@ -182,8 +182,8 @@ class UTAE(nn.Module):
             out = self.out_conv(out)
             if self.shift_output and output is not None:
                 out = self.output_shift_block.smart_forward_output(out, output)
-            out = self.nl(out)
-            out = self.last_relu(out)
+            # out = self.nl(out)
+            # out = self.last_relu(out)
             if return_att:
                 return out, att
             if self.return_maps:
@@ -504,7 +504,7 @@ class BaseShiftNet(nn.Module):
 
         n, c, h, w = predictions.shape
 
-        x = torch.stack([torch.sigmoid(predictions), masks], dim=1)
+        x = torch.stack([masks, torch.sigmoid(predictions)], dim=1)
         x = x.view(n, 2 * c, h, w)
 
         thetas = self.forward(x)
