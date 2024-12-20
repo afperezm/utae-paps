@@ -97,7 +97,7 @@ class UTAE(nn.Module):
             decoder_widths = encoder_widths
 
         if self.shift_input:
-            self.input_shift_block = ShiftResNet18(backbone='imagenet', pad_value=pad_value)
+            self.input_shift_block = ShiftResNet18(num_channels=input_dim, backbone='imagenet', pad_value=pad_value)
         self.in_conv = ConvBlock(
             nkernels=[input_dim] + [encoder_widths[0], encoder_widths[0]],
             pad_value=pad_value,
@@ -143,7 +143,7 @@ class UTAE(nn.Module):
         self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, last_relu=False, padding_mode=padding_mode)
         # del self.out_conv.conv.conv[4]
         if self.shift_output:
-            self.output_shift_block = ShiftResNet18(backbone='imagenet', num_channels=out_conv[-1])
+            self.output_shift_block = ShiftResNet18(num_channels=out_conv[-1], backbone='imagenet')
         # self.nl = nn.BatchNorm2d(out_conv[-1])
         # self.last_relu = nn.ReLU()
 
