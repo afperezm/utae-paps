@@ -437,7 +437,7 @@ class S2TSDataset(tdata.Dataset):
         images = np.stack(images)  # TxHxWxC
         # y_pad = int((images.shape[1] - self.height) / 2)
         # x_pad = int((images.shape[2] - self.width) / 2)
-        # return images[:, y_pad:y_pad + self.height, x_pad:x_pad + self.width, :]
+        # images = images[:, y_pad:y_pad + self.height, x_pad:x_pad + self.width, :]
         return images
 
     def load_target(self, id_patch):
@@ -454,7 +454,7 @@ class S2TSDataset(tdata.Dataset):
         target[target < 0.5] = 0.0
         # y_pad = int((target.shape[0] - self.height) / 2)
         # x_pad = int((target.shape[1] - self.width) / 2)
-        # return target[y_pad:y_pad + self.height, x_pad:x_pad + self.width]
+        # target = target[y_pad:y_pad + self.height, x_pad:x_pad + self.width]
         return target
 
     def __getitem__(self, item):
@@ -510,6 +510,7 @@ def compute_norm_vals(folder, sat):
         for i, b in enumerate(dt):
             print("{}/{}".format(i, len(dt)), end="\r")
             data = b[0][0][sat]  # T x C x H x W
+            # data = b[0][0]  # T x C x H x W
             data = data.permute(1, 0, 2, 3).contiguous()  # C x B x T x H x W
             means.append(data.view(data.shape[0], -1).mean(dim=-1).numpy())
             stds.append(data.view(data.shape[0], -1).std(dim=-1).numpy())
