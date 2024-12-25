@@ -541,8 +541,8 @@ class BaseShiftNet(nn.Module):
 
 class ShiftSqueezeNet(BaseShiftNet):
 
-    def __init__(self, num_channels, dropout=0.5, ref_day=182, pad_value=None):
-        super(ShiftSqueezeNet, self).__init__(ref_day=ref_day, pad_value=pad_value)
+    def __init__(self, num_channels, dropout=0.5, **kwargs):
+        super(ShiftSqueezeNet, self).__init__(**kwargs)
 
         squeezenet = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.DEFAULT)
         squeezenet.features[0] = nn.Conv2d(2 * num_channels, 64, kernel_size=3, stride=2)
@@ -565,8 +565,8 @@ class ShiftSqueezeNet(BaseShiftNet):
 
 class ShiftResNet18(BaseShiftNet):
 
-    def __init__(self, num_channels, backbone='random', ref_day=182, pad_value=None):
-        super(ShiftResNet18, self).__init__(ref_day=ref_day, pad_value=pad_value)
+    def __init__(self, num_channels, backbone='random', **kwargs):
+        super(ShiftResNet18, self).__init__(**kwargs)
 
         weights = None if backbone == 'random' else models.ResNet18_Weights.DEFAULT
         resnet = models.resnet18(weights=weights)
