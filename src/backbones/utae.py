@@ -602,6 +602,7 @@ class ShiftResNet18(BaseShiftNet):
         x = self.avg_pool(x)
         x = torch.flatten(x, 1)
         x = self.fc(x)
+        x = torch.tanh(x)
 
         return x
 
