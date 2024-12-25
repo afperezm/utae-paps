@@ -482,15 +482,21 @@ class BaseShiftNet(nn.Module):
                 # Forward pairs only for non-padded values
                 temp = self.pad_value * torch.ones((n, t, c, h, w), device=x.device, requires_grad=False)
                 thetas = self.forward(x_pairs[~pad_mask])
+                # thetas = torch.zeros(size=(x_pairs[~pad_mask].size(0), 2), device=x
+                # .device)
                 temp[~pad_mask] = self.transform(x[~pad_mask], thetas, output_range=None)
                 out = temp.view(n * t, c, h, w)
             else:
                 # No padded values found
                 thetas = self.forward(x_pairs.view(n * t, 2, h, w))
+                # thetas = torch.zeros(size=(x.view(n * t, c, h, w).size(0), 2), devi
+                # ce=x.device)
                 out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
         else:
             # No padding has been applied
             thetas = self.forward(x_pairs.view(n * t, 2, h, w))
+            # thetas = torch.zeros(size=(x.view(n * t, c, h, w).size(0), 2), device=x
+            # .device)
             # if dates is not None:
             out = self.transform(x.view(n * t, c, h, w), thetas, output_range=None)
 
