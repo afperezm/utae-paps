@@ -97,7 +97,7 @@ class UTAE(nn.Module):
             decoder_widths = encoder_widths
 
         if self.shift_input:
-            self.input_shift_block = ShiftResNet18(num_channels=1, backbone='imagenet', pad_value=pad_value)
+            self.input_shift_block = ShiftResNet18(num_channels=1, backbone='imagenet', interpolation_mode='bicubic', pad_value=pad_value)
         self.in_conv = ConvBlock(
             nkernels=[input_dim] + [encoder_widths[0], encoder_widths[0]],
             pad_value=pad_value,
