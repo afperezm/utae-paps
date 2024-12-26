@@ -427,17 +427,52 @@ class S2TSDataset(tdata.Dataset):
     def get_dates(self, id_patch, sat):
         return self.date_range[np.where(self.date_tables[sat][id_patch] == 1)[0]]
 
+    def resize_array(self, array, padding_mode='constant'):
+
+        target_height, target_width = self.height, self.width
+        current_height, current_width = array.shape[1:3] if array.ndim == 4 else array.shape[:2]
+
+        if current_height < target_height or current_width < target_width:
+            # Calculate padding
+            pad_h = target_height - current_height
+            pad_w = target_width - current_width
+            pad_h_top = pad_h // 2
+            pad_h_bottom = pad_h - pad_h_top
+            pad_w_left = pad_w // 2
+            pad_w_right = pad_w - pad_w_left
+
+            # Apply padding
+            if array.ndim == 4:  # TxHxWxC format
+                array = np.pad(array,
+                               pad_width=((0, 0), (pad_h_top, pad_h_bottom), (pad_w_left, pad_w_right), (0, 0)),
+                               mode=padding_mode, constant_values=0)
+            elif array.ndim == 2:  # HxW format
+                array = np.pad(array,
+                               pad_width=((pad_h_top, pad_h_bottom), (pad_w_left, pad_w_right)),
+                               mode=padding_mode, constant_values=0)
+        elif current_height > target_height or current_width > target_width:
+            # Calculate cropping
+            crop_h = current_height - target_height
+            crop_w = current_width - target_width
+            crop_h_top = crop_h // 2
+            crop_w_left = crop_w // 2
+
+            # Apply cropping
+            if array.ndim == 4:  # TxHxWxC format
+                array = array[:, crop_h_top:crop_h_top + target_height, crop_w_left:crop_w_left + target_width, :]
+            elif array.ndim == 2:  # HxW format
+                array = array[crop_h_top:crop_h_top + target_height, crop_w_left:crop_w_left + target_width]
+
+        return array
+
     def load_patch(self, satellite, id_patch):
         image_names = sorted(self.meta_patch.loc[id_patch, f'Images-{satellite}'])
         images = [tiff.imread(os.path.join(self.folder, satellite, f'{name}.tif')) for name in image_names]
-        images = [image[:, :, 0:3] for image in images]
-        images = [cv2.cvtColor(image, cv2.COLOR_BGR2RGB) for image in images]
-        if (images[0].shape[0], images[0].shape[1]) != (self.width, self.height):
-            images = [cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_CUBIC) for image in images]
-        images = np.stack(images)  # TxHxWxC
-        # y_pad = int((images.shape[1] - self.height) / 2)
-        # x_pad = int((images.shape[2] - self.width) / 2)
-        # images = images[:, y_pad:y_pad + self.height, x_pad:x_pad + self.width, :]
+        images_bgr = [image[:, :, 0:3] for image in images]
+        images_rgb = [cv2.cvtColor(image, cv2.COLOR_BGR2RGB) for image in images_bgr]
+        images_nir = [image[:, :, 3:4] for image in images]
+        images = np.concatenate((images_rgb, images_nir), axis=-1)  # TxHxWxC
+        images = self.resize_array(images)
         return images
 
     def load_target(self, id_patch):
@@ -452,9 +487,7 @@ class S2TSDataset(tdata.Dataset):
         target = np.array(target, np.float32) / 255.0
         target[target >= 0.5] = 1.0
         target[target < 0.5] = 0.0
-        # y_pad = int((target.shape[0] - self.height) / 2)
-        # x_pad = int((target.shape[1] - self.width) / 2)
-        # target = target[y_pad:y_pad + self.height, x_pad:x_pad + self.width]
+        target = self.resize_array(target)
         return target
 
     def __getitem__(self, item):
