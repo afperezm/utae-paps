@@ -515,7 +515,7 @@ class S2TSDataset(tdata.Dataset):
         }
 
         if len(self.satellites) == 1:
-            data = data[self.satellites[0]]
+            data = data[self.satellites[0]][:, 0:3, :, :]
             dates = dates[self.satellites[0]]
 
         return (data, dates), target
