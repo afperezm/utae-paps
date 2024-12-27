@@ -97,6 +97,7 @@ def main(config):
             # mono_date=config.mono_date,
             # target="semantic",
             # sats=["S2"],
+            image_shape=config.image_shape,
             satellites=["S2_10m"],
             folds=test_fold,
         )

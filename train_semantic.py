@@ -86,6 +86,11 @@ parser.add_argument("--lr", default=0.001, type=float, help="Learning rate")
 parser.add_argument("--mono_date", default=None, type=str)
 parser.add_argument("--ref_date", default="2018-09-01", type=str)
 parser.add_argument(
+    "--image_shape", default=(256, 256),
+    type=lambda s: tuple(map(int, s.split(','))),
+    help="Specify the image shape as a comma-separated pair (default: 256,256)."
+)
+parser.add_argument(
     "--fold",
     default=None,
     type=int,
@@ -263,7 +268,7 @@ def main(config):
             # mono_date=config.mono_date,
             # target="semantic",
             # sats=["S2"],
-            image_shape=(256, 256),
+            image_shape=config.image_shape,
             satellites=["S2_10m"]
         )
 
