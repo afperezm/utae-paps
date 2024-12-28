@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sys
 from datetime import datetime
 
 import cv2
@@ -537,7 +538,7 @@ def compute_norm_vals(folder, sat):
     # for fold in ['train', 'valid', 'test']:
     for fold in range(1, 6):
         dt = PASTIS_Dataset(folder=folder, norm=False, folds=[fold], sats=[sat])
-        # dt = S2TSDataset(folder=folder, norm=False, folds=[fold], reference_date="2020-01-01", image_shape=(256, 256), satellites=[sat])
+        # dt = S2TSDataset(folder=folder, norm=False, folds=[fold], reference_date="2020-01-01", image_shape=(250, 250), satellites=[sat])
         means = []
         stds = []
         for i, b in enumerate(dt):
@@ -556,3 +557,11 @@ def compute_norm_vals(folder, sat):
 
     with open(os.path.join(folder, "NORM_{}_patch.json".format(sat)), "w") as file:
         file.write(json.dumps(norm_vals, indent=4))
+
+
+if __name__ == "__main__":
+
+    folder = sys.argv[1]
+    sat = sys.argv[2]
+
+    compute_norm_vals(folder, sat)
