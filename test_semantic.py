@@ -76,6 +76,7 @@ def main(config):
     prepare_output(config)
 
     model = model_utils.get_model(config, mode="semantic")
+    model = nn.DataParallel(model, device_ids=[2, 3])
     model = model.to(device)
 
     config.N_params = utils.get_ntrainparams(model)
@@ -90,15 +91,15 @@ def main(config):
             fold = config.fold - 1
 
         # Dataset definition
-        dt_test = S2TSDataset(
+        dt_test = PASTIS_Dataset(
             folder=config.dataset_folder,
             norm=True,
             reference_date=config.ref_date,
-            # mono_date=config.mono_date,
-            # target="semantic",
-            # sats=["S2"],
-            image_shape=config.image_shape,
-            satellites=["S2_10m"],
+            mono_date=config.mono_date,
+            target="semantic",
+            sats=["S2"],
+            # image_shape=config.image_shape,
+            # satellites=["S2_10m"],
             folds=test_fold,
         )
         collate_fn = lambda x: utils.pad_collate(x, pad_value=config.pad_value)
@@ -118,9 +119,9 @@ def main(config):
         model.load_state_dict(sd["state_dict"])
 
         # Loss
-        # weights = torch.ones(config.num_classes, device=device).float()
-        # weights[config.ignore_index] = 0
-        criterion = nn.BCEWithLogitsLoss()
+        weights = torch.ones(config.num_classes, device=device).float()
+        weights[config.ignore_index] = 0
+        criterion = nn.CrossEntropyLoss(weight=weights)
 
         # Inference
         print("Testing . . .")
@@ -157,6 +158,8 @@ if __name__ == "__main__":
     config = {**model_config, **vars(test_config)}
     config = argparse.Namespace(**config)
     config.fold = test_config.fold
+
+    config.ignore_index = config.num_classes - 1 if config.ignore_index == -1 else config.ignore_index
 
     pprint.pprint(config)
     main(config)

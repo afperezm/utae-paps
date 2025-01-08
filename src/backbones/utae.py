@@ -139,7 +139,7 @@ class UTAE(nn.Module):
             d_k=d_k,
         )
         self.temporal_aggregator = Temporal_Aggregator(mode=agg_mode)
-        self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, last_relu=False, padding_mode=padding_mode)
+        self.out_conv = ConvBlock(nkernels=[decoder_widths[0]] + out_conv, padding_mode=padding_mode)
         if self.shift_output:
             self.output_shift_block = ShiftResNet18(num_channels=out_conv[-1], backbone='imagenet')
 

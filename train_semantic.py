@@ -15,7 +15,6 @@ import torch
 import torch.nn as nn
 import torch.utils.data as data
 import torchnet as tnt
-import torchmetrics
 
 from src import utils, model_utils
 from src.dataset import PASTIS_Dataset, S2TSDataset
@@ -121,24 +120,25 @@ def iterate(
     model, data_loader, criterion, config, optimizer=None, mode="train", device=None
 ):
     loss_meter = tnt.meter.AverageValueMeter()
-    metric1 = torchmetrics.classification.BinaryJaccardIndex().to(device)
-    metric2 = torchmetrics.classification.BinaryAccuracy().to(device)
-    metric3 = torchmetrics.classification.BinaryConfusionMatrix().to(device)
+    iou_meter = IoU(
+        num_classes=config.num_classes,
+        ignore_index=config.ignore_index,
+        cm_device=config.device,
+    )
 
     t_start = time.time()
     for i, batch in enumerate(data_loader):
         if device is not None:
             batch = recursive_todevice(batch, device)
         (x, dates), y = batch
-        y = torch.unsqueeze(y, dim=1)
-        y = y.float()
+        y = y.long()
 
         if mode != "train":
             with torch.no_grad():
                 out = model(x, batch_positions=dates)
         else:
             optimizer.zero_grad()
-            if model.shift_output:
+            if model.module.shift_output:
                 # y_encoded = F.one_hot(masks, num_classes=20).permute(0, 3, 1, 2)
                 out = model(x, output=y, batch_positions=dates)
             else:
@@ -149,14 +149,13 @@ def iterate(
             loss.backward()
             optimizer.step()
 
-        metric1.update(out, y)
-        metric2.update(out, y)
-        metric3.update(out, y)
+        with torch.no_grad():
+            pred = out.argmax(dim=1)
+        iou_meter.add(pred, y)
         loss_meter.add(loss.item())
 
         if (i + 1) % config.display_step == 0:
-            miou = metric1.compute().item()
-            acc = metric2.compute().item()
+            miou, acc = iou_meter.get_miou_acc()
             print(
                 "Step [{}/{}], Loss: {:.4f}, Acc : {:.2f}, mIoU {:.2f}".format(
                     i + 1, len(data_loader), loss_meter.value()[0], acc, miou
@@ -166,8 +165,7 @@ def iterate(
     t_end = time.time()
     total_time = t_end - t_start
     print("Epoch time : {:.1f}s".format(total_time))
-    miou = metric1.compute().item()
-    acc = metric2.compute().item()
+    miou, acc = iou_meter.get_miou_acc()
     metrics = {
         "{}_accuracy".format(mode): acc,
         "{}_loss".format(mode): loss_meter.value()[0],
@@ -176,7 +174,7 @@ def iterate(
     }
 
     if mode == "test":
-        return metrics, metric3.compute()  # confusion matrix
+        return metrics, iou_meter.conf_metric.value()  # confusion matrix
     else:
         return metrics
 
@@ -265,19 +263,19 @@ def main(config):
             folder=config.dataset_folder,
             norm=True,
             reference_date=config.ref_date,
-            # mono_date=config.mono_date,
-            # target="semantic",
-            # sats=["S2"],
-            image_shape=config.image_shape,
-            satellites=["S2_10m"]
+            mono_date=config.mono_date,
+            target="semantic",
+            sats=["S2"],
+            # image_shape=config.image_shape,
+            # satellites=["S2_10m"]
         )
 
-        # dt_train = PASTIS_Dataset(**dt_args, folds=train_folds, cache=config.cache)
-        # dt_val = PASTIS_Dataset(**dt_args, folds=val_fold, cache=config.cache)
-        # dt_test = PASTIS_Dataset(**dt_args, folds=test_fold)
-        dt_train = S2TSDataset(**dt_args, folds=train_folds)
-        dt_val = S2TSDataset(**dt_args, folds=val_fold)
-        dt_test = S2TSDataset(**dt_args, folds=test_fold)
+        dt_train = PASTIS_Dataset(**dt_args, folds=train_folds, cache=config.cache)
+        dt_val = PASTIS_Dataset(**dt_args, folds=val_fold, cache=config.cache)
+        dt_test = PASTIS_Dataset(**dt_args, folds=test_fold)
+        # dt_train = S2TSDataset(**dt_args, folds=train_folds)
+        # dt_val = S2TSDataset(**dt_args, folds=val_fold)
+        # dt_test = S2TSDataset(**dt_args, folds=test_fold)
 
         collate_fn = lambda x: utils.pad_collate(x, pad_value=config.pad_value)
         train_loader = data.DataLoader(
@@ -318,14 +316,15 @@ def main(config):
             if p.requires_grad:
                 print(name)
         model = model.to(device)
+        model = nn.DataParallel(model, device_ids=[2, 3])
         model.apply(weight_init)
 
         # Optimizer and Loss
         optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
 
-        # weights = torch.ones(config.num_classes, device=device).float()
-        # weights[config.ignore_index] = 0
-        criterion = nn.BCEWithLogitsLoss()
+        weights = torch.ones(config.num_classes, device=device).float()
+        weights[config.ignore_index] = 0
+        criterion = nn.CrossEntropyLoss(weight=weights)
 
         # Training loop
         trainlog = {}
@@ -422,7 +421,7 @@ if __name__ == "__main__":
             v = v.replace("]", "")
             config.__setattr__(k, list(map(int, v.split(","))))
 
-    config.ignore_index = None if config.ignore_index == -1 else config.ignore_index
+    config.ignore_index = config.num_classes - 1 if config.ignore_index == -1 else config.ignore_index
 
     assert config.num_classes == config.out_conv[-1]
 
