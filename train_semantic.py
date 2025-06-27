@@ -217,6 +217,8 @@ def save_results(fold, metrics, conf_mat, config):
 def overall_performance(config):
     cm = np.zeros((max(config.num_classes, 2), max(config.num_classes, 2)))
     for fold in range(1, 6):
+        if not os.path.exists(os.path.join(config.res_dir, "Fold_{}".format(fold), "conf_mat.pkl")):
+            continue
         cm += pkl.load(
             open(
                 os.path.join(config.res_dir, "Fold_{}".format(fold), "conf_mat.pkl"),
