@@ -192,7 +192,7 @@ def recursive_todevice(x, device):
 
 def prepare_output(config):
     os.makedirs(config.res_dir, exist_ok=True)
-    for fold in range(1, 6):
+    for fold in range(1, 2):
         os.makedirs(os.path.join(config.res_dir, "Fold_{}".format(fold)), exist_ok=True)
 
 
@@ -218,7 +218,7 @@ def save_results(fold, metrics, conf_mat, config):
 
 def overall_performance(config):
     cm = np.zeros((max(config.num_classes, 2), max(config.num_classes, 2)))
-    for fold in range(1, 6):
+    for fold in range(1, 2):
         if not os.path.exists(os.path.join(config.res_dir, "Fold_{}".format(fold), "conf_mat.pkl")):
             continue
         cm += pkl.load(
@@ -269,7 +269,8 @@ def main(config):
                                                                TileDates(H=24, W=24, doy_bins=None),
                                                                Concat(concat_keys=['x10', 'x20', 'x60', 'day', 'year']),
                                                                CutOrPad(max_seq_len=16, random_sample=True),
-                                                               HVFlip(hflip_prob=0.5, vflip_prob=0.5), Unpack()]))
+                                                               HVFlip(hflip_prob=0.5, vflip_prob=0.5),
+                                                               UnpackInputs()]))
         dt_val = MTLCC_Dataset(root_dir=config.dataset_folder,
                                csv_file=os.path.join(config.dataset_folder, val_fold),
                                transform=transforms.Compose([ToTensor(), SingleLabel(),
@@ -277,7 +278,8 @@ def main(config):
                                                              Rescale(output_size=(24, 24)),
                                                              TileDates(H=24, W=24, doy_bins=None),
                                                              Concat(concat_keys=['x10', 'x20', 'x60', 'day', 'year']),
-                                                             CutOrPad(max_seq_len=16, random_sample=False), Unpack()]))
+                                                             CutOrPad(max_seq_len=16, random_sample=False),
+                                                             UnpackInputs()]))
         dt_test = MTLCC_Dataset(root_dir=config.dataset_folder,
                                 csv_file=os.path.join(config.dataset_folder, test_fold),
                                 transform=transforms.Compose([ToTensor(), SingleLabel(),
@@ -285,7 +287,8 @@ def main(config):
                                                               Rescale(output_size=(24, 24)),
                                                               TileDates(H=24, W=24, doy_bins=None),
                                                               Concat(concat_keys=['x10', 'x20', 'x60', 'day', 'year']),
-                                                              CutOrPad(max_seq_len=16, random_sample=False), Unpack()]))
+                                                              CutOrPad(max_seq_len=16, random_sample=False),
+                                                              UnpackInputs()]))
 
         collate_fn = lambda x: utils.pad_collate(x, pad_value=config.pad_value)
         train_loader = data.DataLoader(
