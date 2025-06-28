@@ -91,12 +91,6 @@ parser.add_argument(
     type=lambda s: tuple(map(int, s.split(','))),
     help="Specify the image shape as a comma-separated pair (default: 256,256)."
 )
-parser.add_argument(
-    "--fold",
-    default=None,
-    type=int,
-    help="Do only one of the five fold (between 1 and 5)",
-)
 parser.add_argument("--num_classes", default=20, type=int)
 parser.add_argument("--ignore_index", default=-1, type=int)
 parser.add_argument("--pad_value", default=0.0, type=float)
@@ -253,12 +247,7 @@ def main(config):
     prepare_output(config)
     device = torch.device(config.device)
 
-    fold_sequence = (
-        fold_sequence if config.fold is None else [fold_sequence[config.fold - 1]]
-    )
     for fold, (train_folds, val_fold, test_fold) in enumerate(fold_sequence):
-        if config.fold is not None:
-            fold = config.fold - 1
 
         # Dataset definition
         dt_train = MTLCC_Dataset(root_dir=config.dataset_folder,
@@ -422,8 +411,7 @@ def main(config):
         )
         save_results(fold + 1, test_metrics, conf_mat.cpu().numpy(), config)
 
-    if config.fold is None:
-        overall_performance(config)
+    overall_performance(config)
 
 
 if __name__ == "__main__":
