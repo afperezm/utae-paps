@@ -257,7 +257,6 @@ def main(config):
                                                                Rescale(output_size=(24, 24)),
                                                                TileDates(H=24, W=24, doy_bins=None),
                                                                Concat(concat_keys=['x10', 'x20', 'x60', 'day', 'year']),
-                                                               CutOrPad(max_seq_len=16, random_sample=True),
                                                                HVFlip(hflip_prob=0.5, vflip_prob=0.5),
                                                                UnpackInputs()]))
         dt_val = MTLCC_Dataset(root_dir=config.dataset_folder,
@@ -267,7 +266,6 @@ def main(config):
                                                              Rescale(output_size=(24, 24)),
                                                              TileDates(H=24, W=24, doy_bins=None),
                                                              Concat(concat_keys=['x10', 'x20', 'x60', 'day', 'year']),
-                                                             CutOrPad(max_seq_len=16, random_sample=False),
                                                              UnpackInputs()]))
         dt_test = MTLCC_Dataset(root_dir=config.dataset_folder,
                                 csv_file=os.path.join(config.dataset_folder, test_fold),
@@ -276,7 +274,6 @@ def main(config):
                                                               Rescale(output_size=(24, 24)),
                                                               TileDates(H=24, W=24, doy_bins=None),
                                                               Concat(concat_keys=['x10', 'x20', 'x60', 'day', 'year']),
-                                                              CutOrPad(max_seq_len=16, random_sample=False),
                                                               UnpackInputs()]))
 
         collate_fn = lambda x: utils.pad_collate(x, pad_value=config.pad_value)
