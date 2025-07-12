@@ -17,7 +17,7 @@ import torch.utils.data as data
 import torchnet as tnt
 
 from src import utils, model_utils
-from src.dataset import PASTIS_Dataset, S2TSDataset
+from src.datasets import PASTIS_Dataset
 from src.learning.metrics import confusion_matrix_analysis
 from src.learning.miou import IoU
 from src.learning.weight_init import weight_init

@@ -15,7 +15,7 @@ import torch.utils.data as data
 import torchnet as tnt
 
 from src import model_utils
-from src.dataset import PASTIS_Dataset
+from src.datasets import PASTIS_Dataset
 from src.learning.weight_init import weight_init
 from src.panoptic.metrics import PanopticMeter
 from src.panoptic.paps_loss import PaPsLoss

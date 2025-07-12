@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.utils.data as data
 
 from src import utils, model_utils
-from src.dataset import PASTIS_Dataset, S2TSDataset
+from src.datasets import PASTIS_Dataset
 
 from train_semantic import iterate, overall_performance, save_results, prepare_output
 

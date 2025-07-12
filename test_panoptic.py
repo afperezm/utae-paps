@@ -14,7 +14,7 @@ import torch.utils.data as data
 
 from train_panoptic import iterate, save_results
 from src import model_utils
-from src.dataset import PASTIS_Dataset
+from src.datasets import PASTIS_Dataset
 from src.panoptic.paps_loss import PaPsLoss
 from src.utils import pad_collate
 
