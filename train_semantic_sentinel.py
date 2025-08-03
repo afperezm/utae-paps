@@ -175,7 +175,7 @@ def iterate(
     }
 
     if mode == "test":
-        return metrics, metric3.compute().item()  # confusion matrix
+        return metrics, metric3.compute()  # confusion matrix
     else:
         return metrics
 
