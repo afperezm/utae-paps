@@ -45,6 +45,7 @@ def get_model(config, mode="semantic"):
                 encoder=False,
                 return_maps=False,
                 pad_value=config.pad_value,
+                last_relu=config.last_relu,
                 padding_mode=config.padding_mode,
             )
         elif config.model == "utaeshiftout":
@@ -66,6 +67,7 @@ def get_model(config, mode="semantic"):
                 encoder=False,
                 return_maps=False,
                 pad_value=config.pad_value,
+                last_relu=config.last_relu,
                 padding_mode=config.padding_mode,
             )
         elif config.model == "unet3d":
