@@ -62,9 +62,8 @@ parser.add_argument(
 parser.add_argument("--rdm_seed", default=1, type=int, help="Random seed")
 parser.add_argument(
     "--device",
-    default="cuda",
-    type=str,
-    help="Name of device to use for tensor computations (cuda/cpu)",
+    default="0,1",
+    help="GPU ids to use"
 )
 parser.add_argument(
     "--display_step",
@@ -251,7 +250,8 @@ def main(config):
     np.random.seed(config.rdm_seed)
     torch.manual_seed(config.rdm_seed)
     prepare_output(config)
-    device = torch.device(config.device)
+    device_ids = [int(d) for d in config.device.split(',')]
+    device = torch.device(f"cuda:{device_ids[0]}")
 
     fold_sequence = (
         fold_sequence if config.fold is None else [fold_sequence[config.fold - 1]]
@@ -318,7 +318,7 @@ def main(config):
             if p.requires_grad:
                 print(name)
         model = model.to(device)
-        model = nn.DataParallel(model, device_ids=[2, 3])
+        model = nn.DataParallel(model, device_ids=device_ids)
         model.apply(weight_init)
 
         # Optimizer and Loss

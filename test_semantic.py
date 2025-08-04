@@ -49,9 +49,8 @@ parser.add_argument(
 )
 parser.add_argument(
     "--device",
-    default="cuda",
-    type=str,
-    help="Name of device to use for tensor computations (cuda/cpu)",
+    default="0,1",
+    help="GPU ids to use"
 )
 parser.add_argument(
     "--display_step",
@@ -72,11 +71,12 @@ def main(config):
 
     np.random.seed(config.rdm_seed)
     torch.manual_seed(config.rdm_seed)
-    device = torch.device(config.device)
+    device_ids = [int(d) for d in config.device.split(',')]
+    device = torch.device(f"cuda:{device_ids[0]}")
     prepare_output(config)
 
     model = model_utils.get_model(config, mode="semantic")
-    model = nn.DataParallel(model, device_ids=[2, 3])
+    model = nn.DataParallel(model, device_ids=device_ids)
     model = model.to(device)
 
     config.N_params = utils.get_ntrainparams(model)
