@@ -133,11 +133,13 @@ def iterate(
 
         if mode != "train":
             with torch.no_grad():
-                out = model(x, batch_positions=dates)
+                if model.module.shift_output:
+                    out = model(x, output=y, batch_positions=dates)
+                else:
+                    out = model(x, batch_positions=dates)
         else:
             optimizer.zero_grad()
             if model.module.shift_output:
-                # y_encoded = F.one_hot(masks, num_classes=20).permute(0, 3, 1, 2)
                 out = model(x, output=y, batch_positions=dates)
             else:
                 out = model(x, batch_positions=dates)
